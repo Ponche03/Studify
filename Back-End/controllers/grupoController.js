@@ -213,66 +213,109 @@ exports.editarGrupo = async (req, res) => {
 };
 
 exports.obtenerGrupoConPosts = async (req, res) => {
-    try {
-      const { id } = req.params; // Obtener el ID del grupo desde los parámetros de la URL
-  
-      // Buscar el grupo por ID
-      const grupo = await Grupo.findById(id);
-  
-      if (!grupo) {
-        return res.status(404).json({ error: "Grupo no encontrado" });
-      }
-  
-      // Obtener los posts asociados al grupo
-      const posts = await Post.find({ grupo_id: id }); // Asumiendo que los posts tienen un campo `grupo_id` que hace referencia al grupo
-  
-      // Responder con la información del grupo y sus posts
-      res.status(200).json({
-        group: {
-          _id: grupo._id,
-          nombre: grupo.nombre,
-          descripcion: grupo.descripcion,
-          maestro_id: grupo.maestro_id
-        },
-        posts: posts
-      });
-    } catch (error) {
-      res.status(500).json({ error: "Error interno del servidor" });
-    }
-  };
+  try {
+    const { id } = req.params; // Obtener el ID del grupo desde los parámetros de la URL
 
-  exports.obtenerAlumnosDeGrupo = async (req, res) => {
+    // Buscar el grupo por ID
+    const grupo = await Grupo.findById(id);
+
+    if (!grupo) {
+      return res.status(404).json({ error: "Grupo no encontrado" });
+    }
+
+    // Obtener los posts asociados al grupo
+    const posts = await Post.find({ grupo_id: id }); // Asumiendo que los posts tienen un campo `grupo_id` que hace referencia al grupo
+
+    // Responder con la información del grupo y sus posts
+    res.status(200).json({
+      group: {
+        _id: grupo._id,
+        nombre: grupo.nombre,
+        descripcion: grupo.descripcion,
+        maestro_id: grupo.maestro_id,
+      },
+      posts: posts,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+};
+
+exports.obtenerAlumnosDeGrupo = async (req, res) => {
+  try {
+    const { id } = req.params; // Obtener el ID del grupo desde los parámetros de la URL
+
+    // Buscar el grupo por su ID
+    const grupo = await Grupo.findById(id);
+
+    if (!grupo) {
+      return res.status(404).json({ error: "Grupo no encontrado" });
+    }
+
+    // Obtener los alumnos del grupo
+    const alumnos = await Usuario.find({
+      _id: { $in: grupo.alumnos.map((alumno) => alumno.alumno_id) }, // Filtra los usuarios por los IDs de los alumnos asociados al grupo
+    });
+
+    // Mapear los datos de los alumnos, incluyendo el número de lista
+    const alumnosConNumeroLista = alumnos.map((alumno) => {
+      const numeroLista = grupo.alumnos.find(
+        (a) => a.alumno_id.toString() === alumno._id.toString()
+      ).numero_lista;
+      return {
+        _id: alumno._id,
+        nombre: alumno.nombre,
+        email: alumno.email,
+        numero_lista: numeroLista,
+      };
+    });
+
+    // Responder con la lista de alumnos
+    res.status(200).json({
+      alumnos: alumnosConNumeroLista,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+};
+
+exports.subirEntrega = async (req, res) => {
     try {
-      const { id } = req.params; // Obtener el ID del grupo desde los parámetros de la URL
+      const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
+      const { alumno_id, archivo_entregado } = req.body; // Obtener el alumno y el archivo entregado desde el cuerpo de la solicitud
   
-      // Buscar el grupo por su ID
-      const grupo = await Grupo.findById(id);
-  
-      if (!grupo) {
-        return res.status(404).json({ error: "Grupo no encontrado" });
+      // Validación básica de los datos
+      if (!alumno_id || !archivo_entregado) {
+        return res.status(400).json({ message: "Alumno ID y archivo son requeridos." });
       }
   
-      // Obtener los alumnos del grupo
-      const alumnos = await Usuario.find({
-        "_id": { $in: grupo.alumnos.map(alumno => alumno.alumno_id) } // Filtra los usuarios por los IDs de los alumnos asociados al grupo
-      });
+      // Buscar la tarea por su ID
+      const tarea = await Tarea.findById(id);
   
-      // Mapear los datos de los alumnos, incluyendo el número de lista
-      const alumnosConNumeroLista = alumnos.map(alumno => {
-        const numeroLista = grupo.alumnos.find(a => a.alumno_id.toString() === alumno._id.toString()).numero_lista;
-        return {
-          _id: alumno._id,
-          nombre: alumno.nombre,
-          email: alumno.email,
-          numero_lista: numeroLista
-        };
-      });
+      // Si la tarea no se encuentra, retornar un error
+      if (!tarea) {
+        return res.status(404).json({ message: "Tarea no encontrada." });
+      }
   
-      // Responder con la lista de alumnos
+      // Crear la nueva entrega
+      const nuevaEntrega = {
+        alumno_id: mongoose.Types.ObjectId(alumno_id),
+        archivo_entregado,
+        fecha_entrega: new Date()
+      };
+  
+      // Agregar la entrega al array de entregas de la tarea
+      tarea.entregas.push(nuevaEntrega);
+  
+      // Guardar la tarea actualizada
+      await tarea.save();
+  
+      // Devolver la respuesta exitosa con los datos de la entrega
       res.status(200).json({
-        alumnos: alumnosConNumeroLista
+        message: "Entrega subida exitosamente",
+        entrega: nuevaEntrega
       });
     } catch (error) {
-      res.status(500).json({ error: "Error interno del servidor" });
+      res.status(500).json({ message: "Error interno del servidor" });
     }
   };

@@ -20,6 +20,7 @@ mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
 // Routes
 app.use("/api", require("./routes/usuarioRoutes"));
 app.use("/api", require("./routes/grupoRoutes"));
+app.use("/api", require("./routes/tareaRoutes"));
 
 // Start server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
