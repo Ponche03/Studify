@@ -10,7 +10,11 @@ const grupoSchema = new mongoose.Schema({
       numero_lista: Number
     }
   ],
-  posts: [{ type: mongoose.Schema.Types.ObjectId }]
+  posts: [{ type: mongoose.Schema.Types.ObjectId }],
+  archivado: { type: Boolean, default: false },
+  foto: { type: String }
 });
+
+
 
 module.exports = mongoose.model("Grupo", grupoSchema);

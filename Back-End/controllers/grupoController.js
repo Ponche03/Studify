@@ -39,7 +39,7 @@ exports.crearGrupo = async (req, res) => {
     }
 };
 
-exports.addStudentToGroup = async (req, res) => {
+exports.añadirAlumnoAGrupo = async (req, res) => {
     try {
       const { group_id } = req.params;
       const { alumno_id } = req.body;
@@ -74,3 +74,30 @@ exports.addStudentToGroup = async (req, res) => {
       res.status(500).json({ error: "Error interno del servidor." });
     }
   };
+
+  exports.archivarGrupo = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const grupo = await Grupo.findByIdAndUpdate(
+            id,
+            { archivado: true },
+            { new: true }
+        );
+
+        if (!grupo) {
+            return res.status(404).json({ error: "Grupo no encontrado" });
+        }
+
+        res.status(200).json({
+            message: "Grupo archivado",
+            group: {
+                _id: grupo._id,
+                archivado: grupo.archivado
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+};
+
