@@ -254,7 +254,7 @@ exports.obtenerAlumnosDeGrupo = async (req, res) => {
     }
 
     // Obtener los alumnos del grupo
-    const alumnos = await Usuario.find({
+    const alumnos = await User.find({
       _id: { $in: grupo.alumnos.map((alumno) => alumno.alumno_id) }, // Filtra los usuarios por los IDs de los alumnos asociados al grupo
     });
 
@@ -276,7 +276,8 @@ exports.obtenerAlumnosDeGrupo = async (req, res) => {
       alumnos: alumnosConNumeroLista,
     });
   } catch (error) {
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.error("Error en obtenerAlumnosDeGrupo:", error); 
+    res.status(500).json({ error: "Error interno del servidor", details: error.message });
   }
 };
 

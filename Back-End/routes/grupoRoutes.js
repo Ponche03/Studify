@@ -17,10 +17,10 @@ router.post("/groups/:id/archive", grupoController.archivarGrupo);
 router.post("/groups/:group_id/dearchive", grupoController.desarchivarGrupo);
 
 // Ruta para obtener los grupos con un parámetro de página como query
-router.get("/groups", authMiddleware, grupoController.obtenerGrupos);
+router.get("/groups", grupoController.obtenerGrupos);
 
 // Ruta para editar un grupo
-router.patch("/groups/:group_id", authMiddleware, grupoController.editarGrupo);
+router.patch("/groups/:group_id", grupoController.editarGrupo);
 
 // Ruta para obtener la información de un grupo con sus posts
 router.get("/groups/:id", grupoController.obtenerGrupoConPosts);
