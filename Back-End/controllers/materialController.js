@@ -1,4 +1,4 @@
-const MaterialClase = require("../models/materialClaseModel");
+const MaterialClase = require("../models/materialModel");
 
 // POST /classmat/ - Agregar material de clase
 const agregarMaterial = async (req, res) => {
