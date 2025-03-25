@@ -46,7 +46,7 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
     const { alumno_id } = req.body;
 
     // Verificar si el grupo existe
-    const group = await Group.findById(group_id);
+    const group = await Grupo.findById(group_id);
     if (!group) {
       return res.status(404).json({ error: "El grupo no existe." });
     }
@@ -54,20 +54,20 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
     // Verificar si el alumno existe
     const student = await User.findById(alumno_id);
     if (!student || student.rol !== "alumno") {
-      return res
-        .status(400)
-        .json({ error: "El alumno no existe o no tiene el rol adecuado." });
+      return res.status(400).json({ error: "El alumno no existe o no tiene el rol adecuado." });
     }
 
     // Verificar si el alumno ya está en el grupo
-    if (group.alumnos.includes(alumno_id)) {
-      return res
-        .status(400)
-        .json({ error: "El alumno ya está en este grupo." });
+    const alumnoExistente = group.alumnos.some(alumno => alumno.alumno_id.toString() === alumno_id);
+    if (alumnoExistente) {
+      return res.status(400).json({ error: "El alumno ya está en este grupo." });
     }
 
-    // Agregar el alumno al grupo
-    group.alumnos.push(alumno_id);
+    // Determinar el número de lista automáticamente
+    const numeroLista = group.alumnos.length + 1;
+
+    // Agregar el alumno al grupo con el número de lista calculado
+    group.alumnos.push({ alumno_id, numero_lista: numeroLista });
     await group.save();
 
     res.status(200).json({
@@ -76,7 +76,8 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
       alumnos: group.alumnos,
     });
   } catch (error) {
-    res.status(500).json({ error: "Error interno del servidor." });
+    console.error(error); // Esto te mostrará el error completo en la consola
+    res.status(500).json({ error: "Error interno del servidor.", details: error.message });
   }
 };
 
