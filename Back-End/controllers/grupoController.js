@@ -1,5 +1,7 @@
+const mongoose = require("mongoose");
 const Grupo = require("../models/grupoModel");
 const User = require("../models/usuarioModel");
+const Post = require("../models/postModel");
 
 exports.crearGrupo = async (req, res) => {
   try {
@@ -217,15 +219,20 @@ exports.obtenerGrupoConPosts = async (req, res) => {
   try {
     const { id } = req.params; // Obtener el ID del grupo desde los parámetros de la URL
 
-    // Buscar el grupo por ID
-    const grupo = await Grupo.findById(id);
+    // Validar que el ID sea un ObjectId válido
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "ID de grupo no válido" });
+    }
+
+    // Buscar el grupo por ID y poblar el maestro
+    const grupo = await Grupo.findById(id).populate("maestro_id", "nombre");
 
     if (!grupo) {
       return res.status(404).json({ error: "Grupo no encontrado" });
     }
 
-    // Obtener los posts asociados al grupo
-    const posts = await Post.find({ grupo_id: id }); // Asumiendo que los posts tienen un campo `grupo_id` que hace referencia al grupo
+    // Obtener los posts asociados al grupo, ordenados por fecha descendente
+    const posts = await Post.find({ grupo_id: id }).sort({ createdAt: -1 });
 
     // Responder con la información del grupo y sus posts
     res.status(200).json({
@@ -233,12 +240,13 @@ exports.obtenerGrupoConPosts = async (req, res) => {
         _id: grupo._id,
         nombre: grupo.nombre,
         descripcion: grupo.descripcion,
-        maestro_id: grupo.maestro_id,
+        maestro: grupo.maestro_id ? grupo.maestro_id.nombre : null,
       },
-      posts: posts,
+      posts,
     });
   } catch (error) {
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.error("Error al obtener grupo con posts:", error);
+    res.status(500).json({ error: error.message || "Error interno del servidor" });
   }
 };
 
@@ -280,44 +288,3 @@ exports.obtenerAlumnosDeGrupo = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor", details: error.message });
   }
 };
-
-exports.subirEntrega = async (req, res) => {
-    try {
-      const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
-      const { alumno_id, archivo_entregado } = req.body; // Obtener el alumno y el archivo entregado desde el cuerpo de la solicitud
-  
-      // Validación básica de los datos
-      if (!alumno_id || !archivo_entregado) {
-        return res.status(400).json({ message: "Alumno ID y archivo son requeridos." });
-      }
-  
-      // Buscar la tarea por su ID
-      const tarea = await Tarea.findById(id);
-  
-      // Si la tarea no se encuentra, retornar un error
-      if (!tarea) {
-        return res.status(404).json({ message: "Tarea no encontrada." });
-      }
-  
-      // Crear la nueva entrega
-      const nuevaEntrega = {
-        alumno_id: mongoose.Types.ObjectId(alumno_id),
-        archivo_entregado,
-        fecha_entrega: new Date()
-      };
-  
-      // Agregar la entrega al array de entregas de la tarea
-      tarea.entregas.push(nuevaEntrega);
-  
-      // Guardar la tarea actualizada
-      await tarea.save();
-  
-      // Devolver la respuesta exitosa con los datos de la entrega
-      res.status(200).json({
-        message: "Entrega subida exitosamente",
-        entrega: nuevaEntrega
-      });
-    } catch (error) {
-      res.status(500).json({ message: "Error interno del servidor" });
-    }
-  };
