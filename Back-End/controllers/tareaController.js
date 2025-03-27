@@ -1,16 +1,15 @@
+const mongoose = require("mongoose");
 const Tarea = require("../models/tareaModel");
 const Grupo = require("../models/grupoModel");
 
 exports.crearTarea = async (req, res) => {
   try {
-    const {
-      titulo,
-      descripcion,
-      fecha_vencimiento,
-      archivo,
-      grupo_id,
-      puntos_totales,
-    } = req.body;
+    const { titulo, descripcion, fecha_vencimiento, archivo, grupo_id, puntos_totales } = req.body;
+
+    // Validar que el grupo_id sea un ObjectId válido
+    if (!mongoose.Types.ObjectId.isValid(grupo_id)) {
+      return res.status(400).json({ error: "ID de grupo no válido" });
+    }
 
     // Verificar si el grupo existe
     const grupo = await Grupo.findById(grupo_id);
@@ -18,12 +17,23 @@ exports.crearTarea = async (req, res) => {
       return res.status(404).json({ error: "Grupo no encontrado" });
     }
 
+    // Validar que los campos requeridos están presentes
+    if (!titulo || !descripcion || !fecha_vencimiento || !puntos_totales) {
+      return res.status(400).json({ error: "Todos los campos son obligatorios" });
+    }
+
+    // Convertir fecha_vencimiento a Date si es necesario
+    const fechaVencimiento = new Date(fecha_vencimiento);
+    if (isNaN(fechaVencimiento.getTime())) {
+      return res.status(400).json({ error: "Fecha de vencimiento no válida" });
+    }
+
     // Crear la tarea
     const nuevaTarea = new Tarea({
       titulo,
       descripcion,
-      fecha_vencimiento,
-      archivo,
+      fecha_vencimiento: fechaVencimiento,
+      archivo: archivo || null, // Si no se envía archivo, lo dejamos como null
       grupo_id,
       puntos_totales,
     });
@@ -45,6 +55,7 @@ exports.crearTarea = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("Error al crear tarea:", error);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
@@ -211,7 +222,7 @@ exports.calificarTarea = async (req, res) => {
     } else {
       // Si no existe, agregar una nueva calificación
       tarea.calificaciones.push({
-        alumno_id: mongoose.Types.ObjectId(alumno_id),
+        alumno_id: new mongoose.Types.ObjectId(alumno_id), // CORREGIDO
         calificacion,
       });
     }
@@ -228,6 +239,7 @@ exports.calificarTarea = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("Error:", error);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
@@ -254,7 +266,7 @@ exports.subirEntrega = async (req, res) => {
 
     // Crear la nueva entrega
     const nuevaEntrega = {
-      alumno_id: mongoose.Types.ObjectId(alumno_id),
+      alumno_id: new mongoose.Types.ObjectId(alumno_id),
       archivo_entregado,
       fecha_entrega: new Date(),
     };
@@ -271,6 +283,7 @@ exports.subirEntrega = async (req, res) => {
       entrega: nuevaEntrega,
     });
   } catch (error) {
+    console.error("Error:", error);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
