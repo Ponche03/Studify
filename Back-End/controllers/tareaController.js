@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
 const Tarea = require("../models/tareaModel");
 const Grupo = require("../models/grupoModel");
+const fs = require("fs");
+const path = require("path");
 
 exports.crearTarea = async (req, res) => {
   try {
@@ -246,38 +248,48 @@ exports.calificarTarea = async (req, res) => {
 
 exports.subirEntrega = async (req, res) => {
   try {
-    const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
-    const { alumno_id, archivo_entregado } = req.body; // Obtener el alumno y el archivo entregado desde el cuerpo de la solicitud
+    const { id } = req.params; // ID de la tarea
+    const { alumno_id, archivo_entregado } = req.body; // Datos enviados en la solicitud
 
-    // Validación básica de los datos
+    // Validar datos
     if (!alumno_id || !archivo_entregado) {
-      return res
-        .status(400)
-        .json({ message: "Alumno ID y archivo son requeridos." });
+      return res.status(400).json({ message: "Alumno ID y archivo son requeridos." });
     }
 
-    // Buscar la tarea por su ID
+    // Buscar la tarea
     const tarea = await Tarea.findById(id);
-
-    // Si la tarea no se encuentra, retornar un error
     if (!tarea) {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
-    // Crear la nueva entrega
+    // Ruta donde se guardará el archivo
+    const uploadsDir = path.join(__dirname, "../uploads");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true }); // Crear la carpeta si no existe
+    }
+
+    // Decodificar Base64 a Buffer
+    const base64Data = archivo_entregado.replace(/^data:application\/pdf;base64,/, ""); // Limpiar el prefijo Base64
+    const archivoBuffer = Buffer.from(base64Data, "base64");
+
+    // Generar nombre único para el archivo
+    const nombreArchivoFinal = `${alumno_id}_${Date.now()}.pdf`;
+    const rutaArchivo = path.join(uploadsDir, nombreArchivoFinal);
+
+    // Guardar archivo en el sistema de archivos
+    fs.writeFileSync(rutaArchivo, archivoBuffer);
+
+    // Crear la entrega
     const nuevaEntrega = {
       alumno_id: new mongoose.Types.ObjectId(alumno_id),
-      archivo_entregado,
+      archivo_entregado: `/uploads/${nombreArchivoFinal}`, // Guardamos solo la ruta
       fecha_entrega: new Date(),
     };
 
-    // Agregar la entrega al array de entregas de la tarea
+    // Agregar la entrega a la tarea
     tarea.entregas.push(nuevaEntrega);
-
-    // Guardar la tarea actualizada
     await tarea.save();
 
-    // Devolver la respuesta exitosa con los datos de la entrega
     res.status(200).json({
       message: "Entrega subida exitosamente",
       entrega: nuevaEntrega,

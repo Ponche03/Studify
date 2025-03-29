@@ -12,6 +12,7 @@ router.patch("/tasks/:id", taskController.actualizarTarea);
 // Ruta para eliminar una tarea
 router.delete("/tasks/:id", taskController.eliminarTarea);
 
+
 // Ruta para obtener tareas asociadas a un usuario con filtros
 router.get("/tasks", taskController.obtenerTareas);
 

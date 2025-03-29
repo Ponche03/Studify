@@ -2,6 +2,9 @@ const User = require("../models/usuarioModel");
 
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const fs = require("fs");
+const path = require('path');
+
 
 exports.logIn = async (req, res) => {
   try {
@@ -51,21 +54,38 @@ exports.registrarUsuario = async (req, res) => {
       return res.status(400).json({ error: "Ya existe el nombre de usuario." });
     }
 
-    // Hashear la contraseña antes de guardar el nuevo usuario
+    // Hashear la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    let fotoRuta = null;
+
+    if (foto_perfil) {
+      const matches = foto_perfil.match(/^data:image\/(\w+);base64,(.+)$/);
+      if (!matches) {
+        return res.status(400).json({ error: "Formato de imagen no válido." });
+      }
+
+      const extension = matches[1]; 
+      const base64Data = matches[2]; 
+      const buffer = Buffer.from(base64Data, "base64");
+
+      const nombreArchivo = `${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
+      const rutaImagen = path.join(__dirname, "../uploads", nombreArchivo);
+
+      fs.writeFileSync(rutaImagen, buffer);
+      fotoRuta = `/uploads/${nombreArchivo}`;
+    }
 
     const nuevoUsuario = new User({
       nombre,
       email,
       rol,
       password: hashedPassword,
-      foto_perfil,
+      foto_perfil: fotoRuta,
     });
 
-    // Guardar en la base de datos
     await nuevoUsuario.save();
 
-    // Responder con el usuario creado
     res.status(200).json({
       message: "Usuario registrado correctamente",
       user: {
@@ -77,6 +97,7 @@ exports.registrarUsuario = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
