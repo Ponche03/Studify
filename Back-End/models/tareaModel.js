@@ -1,11 +1,15 @@
 const mongoose = require("mongoose");
-
 const tareaSchema = new mongoose.Schema({
   titulo: { type: String, required: true },
   descripcion: { type: String },
   fecha_vencimiento: { type: Date },
   archivo: { type: String },
   grupo_id: { type: mongoose.Schema.Types.ObjectId, ref: "Grupo", required: true },
+  estatus: { 
+    type: String, 
+    enum: ['Abierta', 'Cerrada'], 
+    required: true 
+  },
   puntos_totales: { type: Number, required: true },
   entregas: [
     {
@@ -21,5 +25,6 @@ const tareaSchema = new mongoose.Schema({
     }
   ]
 });
+
 
 module.exports = mongoose.model("Tarea", tareaSchema);

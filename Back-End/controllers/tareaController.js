@@ -6,7 +6,7 @@ const path = require("path");
 
 exports.crearTarea = async (req, res) => {
   try {
-    const { titulo, descripcion, fecha_vencimiento, archivo, grupo_id, puntos_totales } = req.body;
+    const { titulo, descripcion, fecha_vencimiento, archivo, grupo_id, puntos_totales, estatus } = req.body;
 
     // Validar que el grupo_id sea un ObjectId válido
     if (!mongoose.Types.ObjectId.isValid(grupo_id)) {
@@ -24,6 +24,12 @@ exports.crearTarea = async (req, res) => {
       return res.status(400).json({ error: "Todos los campos son obligatorios" });
     }
 
+    // Validar que el estatus sea uno de los valores permitidos
+    const estatusValido = ["Abierta", "Cerrada"];
+    if (estatus && !estatusValido.includes(estatus)) {
+      return res.status(400).json({ error: "Estatus no válido" });
+    }
+
     // Convertir fecha_vencimiento a Date si es necesario
     const fechaVencimiento = new Date(fecha_vencimiento);
     if (isNaN(fechaVencimiento.getTime())) {
@@ -38,6 +44,7 @@ exports.crearTarea = async (req, res) => {
       archivo: archivo || null, // Si no se envía archivo, lo dejamos como null
       grupo_id,
       puntos_totales,
+      estatus: estatus || "Abierta", // Si no se envía estatus, se asigna 'pendiente'
     });
 
     // Guardar la tarea en la base de datos
@@ -54,6 +61,7 @@ exports.crearTarea = async (req, res) => {
         archivo: nuevaTarea.archivo,
         grupo_id: nuevaTarea.grupo_id,
         puntos_totales: nuevaTarea.puntos_totales,
+        estatus: nuevaTarea.estatus,
       },
     });
   } catch (error) {
@@ -61,11 +69,10 @@ exports.crearTarea = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
-
 exports.actualizarTarea = async (req, res) => {
   try {
     const { id } = req.params; // Obtener el id de la tarea desde los parámetros de la URL
-    const { titulo, descripcion, fecha_vencimiento, archivo, puntos_totales } =
+    const { titulo, descripcion, fecha_vencimiento, archivo, puntos_totales, estatus } =
       req.body;
 
     // Buscar la tarea en la base de datos por su ID
@@ -74,12 +81,38 @@ exports.actualizarTarea = async (req, res) => {
       return res.status(404).json({ error: "Tarea no encontrada" });
     }
 
+    // Validar que el estatus sea uno de los valores permitidos
+    const estatusValido = ["Abierta", "Cerrada"];
+    if (estatus && !estatusValido.includes(estatus)) {
+      return res.status(400).json({ error: "Estatus no válido" });
+    }
+
+    // Si se proporciona un archivo en base64, procesarlo
+    if (archivo) {
+      const archivoBase64 = archivo.split(",")[1]; // Eliminar la parte antes de la coma (data:application/pdf;base64,)
+      const buffer = Buffer.from(archivoBase64, "base64"); // Convertir el base64 a un buffer
+
+      // Obtener la extensión del archivo (en este caso solo para PDF)
+      const extension = "pdf"; // Puedes extraer la extensión si es necesario, aquí asumimos "pdf"
+
+      // Generar un nombre único para el archivo basado en la fecha y una cadena aleatoria
+      const nombreArchivo = `${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
+
+      const archivoRuta = path.join(__dirname, "..", "uploads", nombreArchivo); // Ruta del archivo en el servidor
+
+      // Guardar el archivo en el servidor
+      fs.writeFileSync(archivoRuta, buffer);
+
+      // Actualizar la ruta del archivo en la tarea
+      tarea.archivo = archivoRuta;
+    }
+
     // Actualizar los campos de la tarea (solo los proporcionados en el cuerpo de la solicitud)
     tarea.titulo = titulo || tarea.titulo;
     tarea.descripcion = descripcion || tarea.descripcion;
     tarea.fecha_vencimiento = fecha_vencimiento || tarea.fecha_vencimiento;
-    tarea.archivo = archivo || tarea.archivo;
     tarea.puntos_totales = puntos_totales || tarea.puntos_totales;
+    tarea.estatus = estatus || tarea.estatus; // Actualiza el estatus si es proporcionado
 
     // Guardar los cambios en la base de datos
     await tarea.save();
@@ -95,13 +128,14 @@ exports.actualizarTarea = async (req, res) => {
         archivo: tarea.archivo,
         grupo_id: tarea.grupo_id,
         puntos_totales: tarea.puntos_totales,
+        estatus: tarea.estatus,
       },
     });
   } catch (error) {
+    console.error("Error:", error);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
-
 exports.eliminarTarea = async (req, res) => {
   try {
     const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
@@ -122,11 +156,10 @@ exports.eliminarTarea = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
-
 exports.obtenerTareas = async (req, res) => {
   try {
     // Obtener parámetros de la consulta
-    const { pagina = 1, status, fecha_inicio, fecha_fin } = req.query;
+    const { pagina = 1, status, fecha_inicio, fecha_fin, group_id } = req.query;
 
     // Convertir la página a número
     const page = parseInt(pagina);
@@ -141,6 +174,9 @@ exports.obtenerTareas = async (req, res) => {
         $gte: new Date(fecha_inicio), // Fecha de inicio mayor o igual
         $lte: new Date(fecha_fin), // Fecha de fin menor o igual
       };
+    }
+    if (group_id) {
+      filters.grupo_id = group_id; // Filtro por group_id
     }
 
     // Calcular el número de documentos a saltar según la página
@@ -163,7 +199,6 @@ exports.obtenerTareas = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
-
 exports.obtenerTarea = async (req, res) => {
   try {
     const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
@@ -185,7 +220,6 @@ exports.obtenerTarea = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
-
 exports.calificarTarea = async (req, res) => {
   try {
     const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
@@ -198,8 +232,8 @@ exports.calificarTarea = async (req, res) => {
         .json({ message: "Alumno ID y calificación son requeridos." });
     }
 
-    // Validar que la calificación esté en el rango permitido (por ejemplo, 0 a 10)
-    if (calificacion < 0 || calificacion > 10) {
+    // Validar que la calificación esté en el rango permitido
+    if (calificacion < 0 || calificacion >= 100) {
       return res
         .status(400)
         .json({ message: "La calificación debe estar entre 0 y 10." });
@@ -245,7 +279,6 @@ exports.calificarTarea = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
-
 exports.subirEntrega = async (req, res) => {
   try {
     const { id } = req.params; // ID de la tarea
@@ -299,3 +332,41 @@ exports.subirEntrega = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
+exports.eliminarEntrega = async (req, res) => {
+  try {
+    const { tareaId } = req.params;  
+    const { alumno_id } = req.body;  
+
+    // Buscar la tarea por ID
+    const tarea = await Tarea.findById(tareaId);
+    if (!tarea) {
+      return res.status(404).json({ message: "Tarea no encontrada." });
+    }
+
+    // Buscar la entrega del alumno en la tarea
+    const entregaIndex = tarea.entregas.findIndex(entrega => entrega.alumno_id.toString() === alumno_id);
+    if (entregaIndex === -1) {
+      return res.status(404).json({ message: "Entrega no encontrada para este alumno." });
+    }
+
+    // Obtener la ruta del archivo entregado
+    const archivoRuta = path.join(__dirname, "..", tarea.entregas[entregaIndex].archivo_entregado);
+    
+    // Eliminar el archivo físico, si existe
+    if (fs.existsSync(archivoRuta)) {
+      fs.unlinkSync(archivoRuta); // Eliminar el archivo
+    }
+
+    // Eliminar la entrega del alumno en el array de entregas
+    tarea.entregas.splice(entregaIndex, 1);
+
+    // Guardar los cambios en la tarea
+    await tarea.save();
+
+    res.status(200).json({ message: "Entrega eliminada exitosamente." });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: "Error interno del servidor." });
+  }
+};
+
