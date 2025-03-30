@@ -6,7 +6,15 @@ const path = require("path");
 
 exports.crearTarea = async (req, res) => {
   try {
-    const { titulo, descripcion, fecha_vencimiento, archivo, grupo_id, puntos_totales, estatus } = req.body;
+    const {
+      titulo,
+      descripcion,
+      fecha_vencimiento,
+      archivo,
+      grupo_id,
+      puntos_totales,
+      estatus,
+    } = req.body;
 
     // Validar que el grupo_id sea un ObjectId válido
     if (!mongoose.Types.ObjectId.isValid(grupo_id)) {
@@ -21,7 +29,9 @@ exports.crearTarea = async (req, res) => {
 
     // Validar que los campos requeridos están presentes
     if (!titulo || !descripcion || !fecha_vencimiento || !puntos_totales) {
-      return res.status(400).json({ error: "Todos los campos son obligatorios" });
+      return res
+        .status(400)
+        .json({ error: "Todos los campos son obligatorios" });
     }
 
     // Validar que el estatus sea uno de los valores permitidos
@@ -69,11 +79,18 @@ exports.crearTarea = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
+
 exports.actualizarTarea = async (req, res) => {
   try {
     const { id } = req.params; // Obtener el id de la tarea desde los parámetros de la URL
-    const { titulo, descripcion, fecha_vencimiento, archivo, puntos_totales, estatus } =
-      req.body;
+    const {
+      titulo,
+      descripcion,
+      fecha_vencimiento,
+      archivo,
+      puntos_totales,
+      estatus,
+    } = req.body;
 
     // Buscar la tarea en la base de datos por su ID
     const tarea = await Tarea.findById(id);
@@ -87,32 +104,43 @@ exports.actualizarTarea = async (req, res) => {
       return res.status(400).json({ error: "Estatus no válido" });
     }
 
-    // Si se proporciona un archivo en base64, procesarlo
     if (archivo) {
-      const archivoBase64 = archivo.split(",")[1]; // Eliminar la parte antes de la coma (data:application/pdf;base64,)
-      const buffer = Buffer.from(archivoBase64, "base64"); // Convertir el base64 a un buffer
-
-      // Obtener la extensión del archivo (en este caso solo para PDF)
-      const extension = "pdf"; // Puedes extraer la extensión si es necesario, aquí asumimos "pdf"
-
-      // Generar un nombre único para el archivo basado en la fecha y una cadena aleatoria
-      const nombreArchivo = `${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
-
-      const archivoRuta = path.join(__dirname, "..", "uploads", nombreArchivo); // Ruta del archivo en el servidor
-
-      // Guardar el archivo en el servidor
-      fs.writeFileSync(archivoRuta, buffer);
-
-      // Actualizar la ruta del archivo en la tarea
-      tarea.archivo = archivoRuta;
+      // Ruta donde se guardará el archivo dentro de la carpeta "uploads"
+      const uploadsDir = path.join(__dirname, "../uploads");
+    
+      // Verificar si la carpeta 'uploads' existe, si no, crearla
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true }); // Crear la carpeta si no existe
+      }
+    
+      // Decodificar Base64 a Buffer
+      const base64Data = archivo.replace(
+        /^data:application\/pdf;base64,/,
+        ""
+      ); // Limpiar el prefijo Base64
+      const archivoBuffer = Buffer.from(base64Data, "base64");
+    
+      // Generar nombre único para el archivo
+      const nombreArchivoFinal = `${id}_${Date.now()}.pdf`;
+    
+      // Ruta relativa para el archivo dentro de "uploads" usando el formato POSIX para separar directorios
+      const rutaArchivo = path.posix.join("/uploads", nombreArchivoFinal); // Usar / como separador
+    
+      // Guardar archivo en el sistema de archivos (ubicado en la carpeta 'uploads')
+      fs.writeFileSync(path.join(__dirname, "../", rutaArchivo), archivoBuffer);
+    
+      // Actualizar la ruta del archivo en el objeto tarea (solo guardará la ruta relativa)
+      tarea.archivo = rutaArchivo;
     }
+    
 
     // Actualizar los campos de la tarea (solo los proporcionados en el cuerpo de la solicitud)
     tarea.titulo = titulo || tarea.titulo;
     tarea.descripcion = descripcion || tarea.descripcion;
     tarea.fecha_vencimiento = fecha_vencimiento || tarea.fecha_vencimiento;
     tarea.puntos_totales = puntos_totales || tarea.puntos_totales;
-    tarea.estatus = estatus || tarea.estatus; // Actualiza el estatus si es proporcionado
+    tarea.estatus = estatus || tarea.estatus;
+    tarea.archivo = tarea.archivo;
 
     // Guardar los cambios en la base de datos
     await tarea.save();
@@ -136,6 +164,7 @@ exports.actualizarTarea = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
+
 exports.eliminarTarea = async (req, res) => {
   try {
     const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
@@ -156,6 +185,7 @@ exports.eliminarTarea = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
+
 exports.obtenerTareas = async (req, res) => {
   try {
     // Obtener parámetros de la consulta
@@ -199,6 +229,7 @@ exports.obtenerTareas = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
+
 exports.obtenerTarea = async (req, res) => {
   try {
     const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
@@ -220,6 +251,31 @@ exports.obtenerTarea = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
+exports.obtenerArchivoTarea = async (req, res) => {
+  try {
+    const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
+    const tarea = await Tarea.findById(id); // Buscar la tarea por ID
+    
+    if (!tarea || !tarea.archivo) {
+      return res.status(404).json({ error: "Archivo de tarea no encontrado." });
+    }
+    
+    const rutaArchivo = path.join(__dirname, "..", tarea.archivo); // Obtener la ruta del archivo
+    
+    if (!fs.existsSync(rutaArchivo)) {
+      return res.status(404).json({ error: "Archivo no encontrado." });
+    }
+    
+    const archivoBuffer = fs.readFileSync(rutaArchivo); // Leer el archivo
+    const archivoBase64 = archivoBuffer.toString("base64"); // Convertir el archivo a Base64
+    
+    res.status(200).json({ archivo: archivoBase64 }); // Enviar el archivo en Base64 como respuesta
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
 exports.calificarTarea = async (req, res) => {
   try {
     const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
@@ -279,6 +335,7 @@ exports.calificarTarea = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
+
 exports.subirEntrega = async (req, res) => {
   try {
     const { id } = req.params; // ID de la tarea
@@ -286,7 +343,9 @@ exports.subirEntrega = async (req, res) => {
 
     // Validar datos
     if (!alumno_id || !archivo_entregado) {
-      return res.status(400).json({ message: "Alumno ID y archivo son requeridos." });
+      return res
+        .status(400)
+        .json({ message: "Alumno ID y archivo son requeridos." });
     }
 
     // Buscar la tarea
@@ -302,7 +361,10 @@ exports.subirEntrega = async (req, res) => {
     }
 
     // Decodificar Base64 a Buffer
-    const base64Data = archivo_entregado.replace(/^data:application\/pdf;base64,/, ""); // Limpiar el prefijo Base64
+    const base64Data = archivo_entregado.replace(
+      /^data:application\/pdf;base64,/,
+      ""
+    ); // Limpiar el prefijo Base64
     const archivoBuffer = Buffer.from(base64Data, "base64");
 
     // Generar nombre único para el archivo
@@ -334,8 +396,8 @@ exports.subirEntrega = async (req, res) => {
 };
 exports.eliminarEntrega = async (req, res) => {
   try {
-    const { tareaId } = req.params;  
-    const { alumno_id } = req.body;  
+    const { tareaId } = req.params;
+    const { alumno_id } = req.body;
 
     // Buscar la tarea por ID
     const tarea = await Tarea.findById(tareaId);
@@ -344,14 +406,22 @@ exports.eliminarEntrega = async (req, res) => {
     }
 
     // Buscar la entrega del alumno en la tarea
-    const entregaIndex = tarea.entregas.findIndex(entrega => entrega.alumno_id.toString() === alumno_id);
+    const entregaIndex = tarea.entregas.findIndex(
+      (entrega) => entrega.alumno_id.toString() === alumno_id
+    );
     if (entregaIndex === -1) {
-      return res.status(404).json({ message: "Entrega no encontrada para este alumno." });
+      return res
+        .status(404)
+        .json({ message: "Entrega no encontrada para este alumno." });
     }
 
     // Obtener la ruta del archivo entregado
-    const archivoRuta = path.join(__dirname, "..", tarea.entregas[entregaIndex].archivo_entregado);
-    
+    const archivoRuta = path.join(
+      __dirname,
+      "..",
+      tarea.entregas[entregaIndex].archivo_entregado
+    );
+
     // Eliminar el archivo físico, si existe
     if (fs.existsSync(archivoRuta)) {
       fs.unlinkSync(archivoRuta); // Eliminar el archivo
@@ -369,4 +439,3 @@ exports.eliminarEntrega = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor." });
   }
 };
-
