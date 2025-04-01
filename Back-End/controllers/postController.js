@@ -5,7 +5,12 @@ const Usuario = require("../models/usuarioModel");
 // Crear un nuevo post
 const crearPost = async (req, res) => {
   try {
-    const { grupo_id, autor_id, contenido, archivo } = req.body;
+    const { grupo_id, autor_id, contenido, archivo_adjunto, tipo_contenido, maestro_id } = req.body;
+
+    // Validar campos obligatorios
+    if (!grupo_id || !autor_id || !contenido || !tipo_contenido || !maestro_id) {
+      return res.status(400).json({ message: "Faltan campos obligatorios." });
+    }
 
     // Verificar que el grupo y el autor existan
     const grupo = await Grupo.findById(grupo_id);
@@ -14,12 +19,19 @@ const crearPost = async (req, res) => {
     const autor = await Usuario.findById(autor_id);
     if (!autor) return res.status(404).json({ message: "Usuario no encontrado" });
 
+    // Verificar que el maestro exista
+    const maestro = await Usuario.findById(maestro_id);
+    if (!maestro) return res.status(404).json({ message: "Maestro no encontrado" });
+
     // Crear el post
     const nuevoPost = new Post({
       grupo_id,
       autor_id,
       contenido,
-      archivo,
+      archivo_adjunto, // Cambiado para coincidir con la base de datos
+      tipo_contenido,
+      maestro_id,
+      fecha_post: new Date(), // Agregar la fecha actual como fecha_post
     });
 
     const postGuardado = await nuevoPost.save();
@@ -37,6 +49,11 @@ const actualizarPost = async (req, res) => {
   try {
     const { id } = req.params;
     const { contenido, archivo } = req.body;
+
+    // Validar que al menos un campo esté presente
+    if (!contenido && !archivo) {
+      return res.status(400).json({ message: "Debe proporcionar al menos un campo para actualizar." });
+    }
 
     const postActualizado = await Post.findByIdAndUpdate(
       id,
@@ -58,12 +75,21 @@ const actualizarPost = async (req, res) => {
 // Obtener lista de posts de un grupo específico, ordenados por fecha
 const obtenerPostsPorGrupo = async (req, res) => {
   try {
-    const { group_id } = req.query;
+    const { group_id } = req.query; // El parámetro de consulta sigue siendo group_id
 
+    if (!group_id) {
+      return res.status(400).json({ message: "El parámetro 'group_id' es obligatorio." });
+    }
+
+    // Ajustar la consulta para que coincida con la estructura de la base de datos
     const posts = await Post.find({ grupo_id: group_id })
-      .sort({ fecha_creacion: -1 }) // Ordenar por fecha de creación descendente
-      .populate("autor_id", "nombre email") // Población del autor
+      .sort({ fecha_post: -1 }) // Ordenar por fecha_post descendente
+      .populate("maestro_id", "nombre email") // Población del maestro (si aplica)
       .populate("grupo_id", "nombre"); // Población del grupo
+
+    if (posts.length === 0) {
+      return res.status(404).json({ message: "No se encontraron posts para este grupo." });
+    }
 
     res.status(200).json({
       posts,
