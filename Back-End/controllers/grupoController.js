@@ -1,5 +1,7 @@
+const mongoose = require("mongoose");
 const Grupo = require("../models/grupoModel");
 const User = require("../models/usuarioModel");
+const Post = require("../models/postModel");
 
 exports.crearGrupo = async (req, res) => {
   try {
@@ -46,7 +48,7 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
     const { alumno_id } = req.body;
 
     // Verificar si el grupo existe
-    const group = await Group.findById(group_id);
+    const group = await Grupo.findById(group_id);
     if (!group) {
       return res.status(404).json({ error: "El grupo no existe." });
     }
@@ -54,20 +56,20 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
     // Verificar si el alumno existe
     const student = await User.findById(alumno_id);
     if (!student || student.rol !== "alumno") {
-      return res
-        .status(400)
-        .json({ error: "El alumno no existe o no tiene el rol adecuado." });
+      return res.status(400).json({ error: "El alumno no existe o no tiene el rol adecuado." });
     }
 
     // Verificar si el alumno ya está en el grupo
-    if (group.alumnos.includes(alumno_id)) {
-      return res
-        .status(400)
-        .json({ error: "El alumno ya está en este grupo." });
+    const alumnoExistente = group.alumnos.some(alumno => alumno.alumno_id.toString() === alumno_id);
+    if (alumnoExistente) {
+      return res.status(400).json({ error: "El alumno ya está en este grupo." });
     }
 
-    // Agregar el alumno al grupo
-    group.alumnos.push(alumno_id);
+    // Determinar el número de lista automáticamente
+    const numeroLista = group.alumnos.length + 1;
+
+    // Agregar el alumno al grupo con el número de lista calculado
+    group.alumnos.push({ alumno_id, numero_lista: numeroLista });
     await group.save();
 
     res.status(200).json({
@@ -76,7 +78,8 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
       alumnos: group.alumnos,
     });
   } catch (error) {
-    res.status(500).json({ error: "Error interno del servidor." });
+    console.error(error); // Esto te mostrará el error completo en la consola
+    res.status(500).json({ error: "Error interno del servidor.", details: error.message });
   }
 };
 
@@ -216,15 +219,20 @@ exports.obtenerGrupoConPosts = async (req, res) => {
   try {
     const { id } = req.params; // Obtener el ID del grupo desde los parámetros de la URL
 
-    // Buscar el grupo por ID
-    const grupo = await Grupo.findById(id);
+    // Validar que el ID sea un ObjectId válido
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "ID de grupo no válido" });
+    }
+
+    // Buscar el grupo por ID y poblar el maestro
+    const grupo = await Grupo.findById(id).populate("maestro_id", "nombre");
 
     if (!grupo) {
       return res.status(404).json({ error: "Grupo no encontrado" });
     }
 
-    // Obtener los posts asociados al grupo
-    const posts = await Post.find({ grupo_id: id }); // Asumiendo que los posts tienen un campo `grupo_id` que hace referencia al grupo
+    // Obtener los posts asociados al grupo, ordenados por fecha descendente
+    const posts = await Post.find({ grupo_id: id }).sort({ createdAt: -1 });
 
     // Responder con la información del grupo y sus posts
     res.status(200).json({
@@ -232,12 +240,13 @@ exports.obtenerGrupoConPosts = async (req, res) => {
         _id: grupo._id,
         nombre: grupo.nombre,
         descripcion: grupo.descripcion,
-        maestro_id: grupo.maestro_id,
+        maestro: grupo.maestro_id ? grupo.maestro_id.nombre : null,
       },
-      posts: posts,
+      posts,
     });
   } catch (error) {
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.error("Error al obtener grupo con posts:", error);
+    res.status(500).json({ error: error.message || "Error interno del servidor" });
   }
 };
 
@@ -253,7 +262,7 @@ exports.obtenerAlumnosDeGrupo = async (req, res) => {
     }
 
     // Obtener los alumnos del grupo
-    const alumnos = await Usuario.find({
+    const alumnos = await User.find({
       _id: { $in: grupo.alumnos.map((alumno) => alumno.alumno_id) }, // Filtra los usuarios por los IDs de los alumnos asociados al grupo
     });
 
@@ -275,47 +284,7 @@ exports.obtenerAlumnosDeGrupo = async (req, res) => {
       alumnos: alumnosConNumeroLista,
     });
   } catch (error) {
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.error("Error en obtenerAlumnosDeGrupo:", error); 
+    res.status(500).json({ error: "Error interno del servidor", details: error.message });
   }
 };
-
-exports.subirEntrega = async (req, res) => {
-    try {
-      const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
-      const { alumno_id, archivo_entregado } = req.body; // Obtener el alumno y el archivo entregado desde el cuerpo de la solicitud
-  
-      // Validación básica de los datos
-      if (!alumno_id || !archivo_entregado) {
-        return res.status(400).json({ message: "Alumno ID y archivo son requeridos." });
-      }
-  
-      // Buscar la tarea por su ID
-      const tarea = await Tarea.findById(id);
-  
-      // Si la tarea no se encuentra, retornar un error
-      if (!tarea) {
-        return res.status(404).json({ message: "Tarea no encontrada." });
-      }
-  
-      // Crear la nueva entrega
-      const nuevaEntrega = {
-        alumno_id: mongoose.Types.ObjectId(alumno_id),
-        archivo_entregado,
-        fecha_entrega: new Date()
-      };
-  
-      // Agregar la entrega al array de entregas de la tarea
-      tarea.entregas.push(nuevaEntrega);
-  
-      // Guardar la tarea actualizada
-      await tarea.save();
-  
-      // Devolver la respuesta exitosa con los datos de la entrega
-      res.status(200).json({
-        message: "Entrega subida exitosamente",
-        entrega: nuevaEntrega
-      });
-    } catch (error) {
-      res.status(500).json({ message: "Error interno del servidor" });
-    }
-  };

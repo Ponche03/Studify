@@ -5,28 +5,28 @@ const express = require("express");
 const router = express.Router();
 
 // Ruta para registrar un grupo
-router.post("/groups", grupoController.crearGrupo);
+router.post("/groups", authMiddleware, grupoController.crearGrupo);
 
 // Ruta para agregar un alumno a un grupo
-router.post("/groups/:group_id/addStudent", grupoController.añadirAlumnoAGrupo);
+router.post("/groups/:group_id/addStudent", authMiddleware,grupoController.añadirAlumnoAGrupo);
 
 // Ruta para archivar un grupo
-router.post("/groups/:id/archive", grupoController.archivarGrupo);
+router.post("/groups/:id/archive", authMiddleware, grupoController.archivarGrupo);
 
 // Ruta para desarchivar un grupo
-router.post("/groups/:group_id/dearchive", grupoController.desarchivarGrupo);
+router.post("/groups/:group_id/dearchive", authMiddleware,grupoController.desarchivarGrupo);
 
 // Ruta para obtener los grupos con un parámetro de página como query
 router.get("/groups", authMiddleware, grupoController.obtenerGrupos);
 
 // Ruta para editar un grupo
-router.patch("/groups/:group_id", authMiddleware, grupoController.editarGrupo);
+router.patch("/groups/:group_id", authMiddleware,grupoController.editarGrupo);
 
 // Ruta para obtener la información de un grupo con sus posts
-router.get("/groups/:id", grupoController.obtenerGrupoConPosts);
+router.get("/groups/:id", authMiddleware, grupoController.obtenerGrupoConPosts);
 
 // Ruta para obtener los alumnos de un grupo específico
-router.get("/groups/:id/getStudents", grupoController.obtenerAlumnosDeGrupo);
+router.get("/groups/:id/getStudents", authMiddleware,grupoController.obtenerAlumnosDeGrupo);
 
 
 module.exports = router;

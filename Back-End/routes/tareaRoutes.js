@@ -18,8 +18,14 @@ router.get("/tasks", taskController.obtenerTareas);
 // Ruta para obtener información detallada de una tarea
 router.get("/tasks/:id", taskController.obtenerTarea);
 
+// Ruta para obtener el archivo asociado a una tarea en base64
+router.get("/tasks/:id/getTaskFile", taskController.obtenerArchivoTarea);
+
 // Ruta para subir archivo a una tarea (entrega)
 router.post("/tasks/:id/uploadFile", taskController.subirEntrega);
+
+// Ruta para subir archivo a una tarea (entrega)
+router.delete("/tasks/:id/deleteFile", taskController.eliminarEntrega);
 
 // Ruta para calificar una tarea
 router.post("/tasks/:id/gradeTask", taskController.calificarTarea);
