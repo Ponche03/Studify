@@ -33,7 +33,10 @@ const obtenerAsistencia = async (req, res) => {
     const { grupo_id, fecha } = req.query;
 
     // Buscar asistencia por grupo_id y fecha
-    const asistencia = await Asistencia.findOne({ grupo_id, fecha: new Date(fecha) }).populate("asistencias.alumno_id");
+    const asistencia = await Asistencia.findOne({ 
+      grupo_id, 
+      fecha: new Date(fecha)
+    });
 
     if (!asistencia) {
       return res.status(404).json({
@@ -52,7 +55,6 @@ const obtenerAsistencia = async (req, res) => {
     });
   }
 };
-
 module.exports = {
   guardarAsistencia,
   obtenerAsistencia,
