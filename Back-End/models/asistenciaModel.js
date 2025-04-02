@@ -11,4 +11,4 @@ const AsistenciaSchema = new mongoose.Schema({
   ]
 });
 
-module.exports = mongoose.model("Asistencia", AsistenciaSchema);
+module.exports = mongoose.model("Asistencias", AsistenciaSchema);
