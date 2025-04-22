@@ -1,12 +1,8 @@
+const mongoose = require("mongoose");
 const Tarea = require("../models/tareaModel");
 const Grupo = require("../models/grupoModel");
-
-const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
-
-const { bucket } = require("../firebase/firebaseSetup");
-const { v4: uuidv4 } = require("uuid");
 
 exports.crearTarea = async (req, res) => {
   try {
@@ -24,68 +20,46 @@ exports.crearTarea = async (req, res) => {
       return res.status(400).json({ error: "ID de grupo no válido" });
     }
 
+    // Verificar si el grupo existe
     const grupo = await Grupo.findById(grupo_id);
     if (!grupo) {
       return res.status(404).json({ error: "Grupo no encontrado" });
     }
 
+    // Validar que los campos requeridos están presentes
     if (!titulo || !descripcion || !fecha_vencimiento || !puntos_totales) {
       return res
         .status(400)
         .json({ error: "Todos los campos son obligatorios" });
     }
 
+    // Validar que el estatus sea uno de los valores permitidos
     const estatusValido = ["Abierta", "Cerrada"];
     if (estatus && !estatusValido.includes(estatus)) {
       return res.status(400).json({ error: "Estatus no válido" });
     }
 
+    // Convertir fecha_vencimiento a Date si es necesario
     const fechaVencimiento = new Date(fecha_vencimiento);
     if (isNaN(fechaVencimiento.getTime())) {
       return res.status(400).json({ error: "Fecha de vencimiento no válida" });
     }
 
-    let archivoURL = null;
-
-    if (archivo) {
-      const matches = archivo.match(/^data:(.+);base64,(.+)$/);
-      if (!matches) {
-        return res.status(400).json({ error: "Formato de archivo no válido" });
-      }
-
-      const mimeType = matches[1];
-      const base64Data = matches[2];
-      const buffer = Buffer.from(base64Data, "base64");
-      const extension = mimeType.split("/")[1];
-      const nombreArchivo = `${Date.now()}_${Math.random()
-        .toString(36)
-        .substring(7)}.${extension}`;
-      const file = admin.storage().bucket().file(nombreArchivo);
-
-      await file.save(buffer, {
-        metadata: {
-          contentType: mimeType,
-          metadata: {
-            firebaseStorageDownloadTokens: uuidv4(),
-          },
-        },
-      });
-
-      archivoURL = `https://firebasestorage.googleapis.com/v0/b/${admin.storage().bucket().name}/o/${encodeURIComponent(nombreArchivo)}?alt=media&token=${file.metadata.metadata.firebaseStorageDownloadTokens}`;
-    }
-
+    // Crear la tarea
     const nuevaTarea = new Tarea({
       titulo,
       descripcion,
       fecha_vencimiento: fechaVencimiento,
-      archivo: archivoURL,
+      archivo: archivo || null,
       grupo_id,
       puntos_totales,
       estatus: estatus || "Abierta",
     });
 
+    // Guardar la tarea en la base de datos
     await nuevaTarea.save();
 
+    // Responder con la tarea creada
     res.status(201).json({
       message: "Tarea creada exitosamente",
       task: {
@@ -213,7 +187,7 @@ exports.eliminarTarea = async (req, res) => {
 
 exports.obtenerTareas = async (req, res) => {
   try {
-    // Obtener parámetros de la consulta
+
     const { pagina = 1, status, fecha_inicio, fecha_fin, group_id } = req.query;
 
     // Convertir la página a número
@@ -226,16 +200,16 @@ exports.obtenerTareas = async (req, res) => {
     }
     if (fecha_inicio && fecha_fin) {
       filters.fecha_vencimiento = {
-        $gte: new Date(fecha_inicio), // Fecha de inicio mayor o igual
-        $lte: new Date(fecha_fin), // Fecha de fin menor o igual
+        $gte: new Date(fecha_inicio), 
+        $lte: new Date(fecha_fin), 
       };
     }
     if (group_id) {
-      filters.grupo_id = group_id; // Filtro por group_id
+      filters.grupo_id = group_id; 
     }
 
     // Calcular el número de documentos a saltar según la página
-    const pageSize = 10; // Número de elementos por página
+    const pageSize = 10;
     const skip = (page - 1) * pageSize;
 
     // Obtener las tareas con filtros, paginación y limitación
@@ -261,9 +235,9 @@ exports.obtenerTarea = async (req, res) => {
 
     // Buscar la tarea por su ID
     const tarea = await Tarea.findById(id)
-      .populate("grupo_id", "nombre") // Opcional: Poblamos el grupo con su nombre
-      .populate("entregas.alumno_id", "nombre email") // Poblamos los datos de los alumnos que entregaron tareas
-      .populate("calificaciones.alumno_id", "nombre email"); // Poblamos los datos de los alumnos calificados
+      .populate("grupo_id", "nombre") 
+      .populate("entregas.alumno_id", "nombre email") 
+      .populate("calificaciones.alumno_id", "nombre email");
 
     // Si no se encuentra la tarea, retornar un error
     if (!tarea) {
@@ -274,31 +248,6 @@ exports.obtenerTarea = async (req, res) => {
     res.status(200).json(tarea);
   } catch (error) {
     res.status(500).json({ message: "Error interno del servidor" });
-  }
-};
-
-exports.obtenerArchivoTarea = async (req, res) => {
-  try {
-    const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
-    const tarea = await Tarea.findById(id); // Buscar la tarea por ID
-    
-    if (!tarea || !tarea.archivo) {
-      return res.status(404).json({ error: "Archivo de tarea no encontrado." });
-    }
-    
-    const rutaArchivo = path.join(__dirname, "..", tarea.archivo); // Obtener la ruta del archivo
-    
-    if (!fs.existsSync(rutaArchivo)) {
-      return res.status(404).json({ error: "Archivo no encontrado." });
-    }
-    
-    const archivoBuffer = fs.readFileSync(rutaArchivo); // Leer el archivo
-    const archivoBase64 = archivoBuffer.toString("base64"); // Convertir el archivo a Base64
-    
-    res.status(200).json({ archivo: archivoBase64 }); // Enviar el archivo en Base64 como respuesta
-  } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ error: "Error interno del servidor." });
   }
 };
 
@@ -362,71 +311,54 @@ exports.calificarTarea = async (req, res) => {
   }
 };
 
-exports.subirEntrega = async (req, res) => {
+exports.obtenerEntregasPorTarea = async (req, res) => {
   try {
-    const { id } = req.params; 
-    const { alumno_id, archivo_entregado } = req.body;
+    const { id } = req.params;
+    const { grupo_id } = req.query;
 
-    if (!alumno_id || !archivo_entregado) {
-      return res
-        .status(400)
-        .json({ message: "Alumno ID y archivo son requeridos." });
+    if (!grupo_id) {
+      return res.status(400).json({ message: "El ID del grupo es requerido." });
     }
 
-    // Verificar que la tarea exista
+    const tarea = await Tarea.findOne({ _id: id, grupo_id })
+      .populate("entregas.alumno_id", "nombre correo");
+
+    if (!tarea) {
+      return res.status(404).json({ message: "Tarea no encontrada o no pertenece al grupo especificado." });
+    }
+
+    res.status(200).json({
+      message: "Entregas obtenidas exitosamente.",
+      entregas: tarea.entregas,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: "Error interno del servidor." });
+  }
+};
+
+exports.subirEntrega = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { alumno_id, archivo_entregado, tipo_archivo, nombre_usuario } = req.body;
+
+    if (!alumno_id || !archivo_entregado || !tipo_archivo || !nombre_usuario) {
+      return res.status(400).json({ message: "Todos los campos son requeridos." });
+    }
+
     const tarea = await Tarea.findById(id);
     if (!tarea) {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
-    // Procesar archivo base64 (con o sin encabezado)
-    let base64Data = archivo_entregado;
-    let extension = "bin";
-    if (archivo_entregado.startsWith("data:")) {
-      const matches = archivo_entregado.match(/^data:(.+);base64,(.+)$/);
-      if (!matches) {
-        return res.status(400).json({ error: "Formato de archivo no válido." });
-      }
-
-      const mimeType = matches[1];
-      base64Data = matches[2];
-
-      const mimeMap = {
-        "application/pdf": "pdf",
-        "image/jpeg": "jpeg",
-        "image/png": "png",
-      };
-      extension = mimeMap[mimeType] || "bin";
-    }
-
-    const buffer = Buffer.from(base64Data, "base64");
-
-    // Generar nombre único + token de acceso
-    const nombreArchivo = `${alumno_id}_${Date.now()}.${extension}`;
-    const token = uuidv4();
-
-    const archivo = bucket.file(nombreArchivo);
-    await archivo.save(buffer, {
-      metadata: {
-        contentType: `application/${extension}`,
-        metadata: {
-          firebaseStorageDownloadTokens: token,
-        },
-      },
-      public: false,
-      resumable: false,
-    });
-
-    // Generar URL de descarga
-    const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
-      nombreArchivo
-    )}?alt=media&token=${token}`;
-
-    // Crear y guardar la entrega
     const nuevaEntrega = {
+      _id: new mongoose.Types.ObjectId(), // ID único para la entrega
       alumno_id: new mongoose.Types.ObjectId(alumno_id),
-      archivo_entregado: url,
+      nombre_usuario,
+      archivo_entregado,
+      tipo_archivo,
       fecha_entrega: new Date(),
+      estatus: "Entregado"
     };
 
     tarea.entregas.push(nuevaEntrega);
@@ -437,51 +369,61 @@ exports.subirEntrega = async (req, res) => {
       entrega: nuevaEntrega,
     });
   } catch (error) {
-    console.error("Error al subir entrega:", error);
+    console.error("Error:", error);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
 
 exports.eliminarEntrega = async (req, res) => {
   try {
-    const { tareaId } = req.params;
-    const { alumno_id } = req.body;
+    const { tareaId, entregaId } = req.params;
 
-    // Buscar la tarea por ID
     const tarea = await Tarea.findById(tareaId);
     if (!tarea) {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
-    // Buscar la entrega del alumno en la tarea
     const entregaIndex = tarea.entregas.findIndex(
-      (entrega) => entrega.alumno_id.toString() === alumno_id
+      (entrega) => entrega._id.toString() === entregaId
     );
+
     if (entregaIndex === -1) {
-      return res
-        .status(404)
-        .json({ message: "Entrega no encontrada para este alumno." });
+      return res.status(404).json({ message: "Entrega no encontrada." });
     }
 
-    // Obtener la ruta del archivo entregado
-    const archivoRuta = path.join(
-      __dirname,
-      "..",
-      tarea.entregas[entregaIndex].archivo_entregado
-    );
-
-    // Eliminar el archivo físico, si existe
-    if (fs.existsSync(archivoRuta)) {
-      fs.unlinkSync(archivoRuta); // Eliminar el archivo
-    }
-
-    // Eliminar la entrega del alumno en el array de entregas
     tarea.entregas.splice(entregaIndex, 1);
-
-    // Guardar los cambios en la tarea
     await tarea.save();
 
     res.status(200).json({ message: "Entrega eliminada exitosamente." });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: "Error interno del servidor." });
+  }
+};
+
+exports.actualizarEntrega = async (req, res) => {
+  try {
+    const { tareaId, entregaId } = req.params;
+    const { archivo_entregado, tipo_archivo, estatus, nombre_usuario } = req.body;
+
+    const tarea = await Tarea.findById(tareaId);
+    if (!tarea) {
+      return res.status(404).json({ message: "Tarea no encontrada." });
+    }
+
+    const entrega = tarea.entregas.id(entregaId);
+    if (!entrega) {
+      return res.status(404).json({ message: "Entrega no encontrada." });
+    }
+
+    if (archivo_entregado) entrega.archivo_entregado = archivo_entregado;
+    if (tipo_archivo) entrega.tipo_archivo = tipo_archivo;
+    if (estatus) entrega.estatus = estatus;
+    if (nombre_usuario) entrega.nombre_usuario = nombre_usuario;
+
+    await tarea.save();
+
+    res.status(200).json({ message: "Entrega actualizada exitosamente.", entrega });
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ message: "Error interno del servidor." });
