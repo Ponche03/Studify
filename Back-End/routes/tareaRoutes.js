@@ -30,4 +30,7 @@ router.delete("/tasks/:id/deleteFile", taskController.eliminarEntrega);
 // Ruta para calificar una tarea
 router.post("/tasks/:id/gradeTask", taskController.calificarTarea);
 
+// Ruta para actualizar una entrega específica de una tarea
+router.put("/tasks/:tareaId/uploads/:entregaId", taskController.actualizarEntrega);
+
 module.exports = router;
