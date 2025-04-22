@@ -5,8 +5,6 @@ const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require('path');
 
-const { bucket } = require("../firebase/firebaseSetup");
-const { v4: uuidv4 } = require("uuid");
 
 exports.logIn = async (req, res) => {
   try {
@@ -50,13 +48,16 @@ exports.registrarUsuario = async (req, res) => {
   try {
     const { nombre, email, rol, password, foto_perfil } = req.body;
 
+    // Verificar si el usuario ya existe
     const usuarioExistente = await User.findOne({ email });
     if (usuarioExistente) {
       return res.status(400).json({ error: "Ya existe el nombre de usuario." });
     }
 
+    // Hashear la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
-    let fotoUrl = null;
+
+    let fotoRuta = null;
 
     if (foto_perfil) {
       const matches = foto_perfil.match(/^data:image\/(\w+);base64,(.+)$/);
@@ -64,25 +65,15 @@ exports.registrarUsuario = async (req, res) => {
         return res.status(400).json({ error: "Formato de imagen no válido." });
       }
 
-      const extension = matches[1];
-      const base64Data = matches[2];
+      const extension = matches[1]; 
+      const base64Data = matches[2]; 
       const buffer = Buffer.from(base64Data, "base64");
 
       const nombreArchivo = `${Date.now()}_${Math.random().toString(36).substring(7)}.${extension}`;
-      const file = bucket.file(nombreArchivo);
+      const rutaImagen = path.join(__dirname, "../uploads", nombreArchivo);
 
-      const uuid = uuidv4();
-
-      await file.save(buffer, {
-        metadata: {
-          contentType: `image/${extension}`,
-          metadata: {
-            firebaseStorageDownloadTokens: uuid,
-          },
-        },
-      });
-
-      fotoUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(nombreArchivo)}?alt=media&token=${uuid}`;
+      fs.writeFileSync(rutaImagen, buffer);
+      fotoRuta = `/uploads/${nombreArchivo}`;
     }
 
     const nuevoUsuario = new User({
@@ -90,7 +81,7 @@ exports.registrarUsuario = async (req, res) => {
       email,
       rol,
       password: hashedPassword,
-      foto_perfil: fotoUrl,
+      foto_perfil: fotoRuta,
     });
 
     await nuevoUsuario.save();
