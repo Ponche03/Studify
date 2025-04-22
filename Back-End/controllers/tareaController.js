@@ -16,7 +16,6 @@ exports.crearTarea = async (req, res) => {
       estatus,
     } = req.body;
 
-    // Validar que el grupo_id sea un ObjectId válido
     if (!mongoose.Types.ObjectId.isValid(grupo_id)) {
       return res.status(400).json({ error: "ID de grupo no válido" });
     }
@@ -51,10 +50,10 @@ exports.crearTarea = async (req, res) => {
       titulo,
       descripcion,
       fecha_vencimiento: fechaVencimiento,
-      archivo: archivo || null, // Si no se envía archivo, lo dejamos como null
+      archivo: archivo || null,
       grupo_id,
       puntos_totales,
-      estatus: estatus || "Abierta", // Si no se envía estatus, se asigna 'pendiente'
+      estatus: estatus || "Abierta",
     });
 
     // Guardar la tarea en la base de datos
@@ -188,7 +187,7 @@ exports.eliminarTarea = async (req, res) => {
 
 exports.obtenerTareas = async (req, res) => {
   try {
-    // Obtener parámetros de la consulta
+
     const { pagina = 1, status, fecha_inicio, fecha_fin, group_id } = req.query;
 
     // Convertir la página a número
@@ -201,16 +200,16 @@ exports.obtenerTareas = async (req, res) => {
     }
     if (fecha_inicio && fecha_fin) {
       filters.fecha_vencimiento = {
-        $gte: new Date(fecha_inicio), // Fecha de inicio mayor o igual
-        $lte: new Date(fecha_fin), // Fecha de fin menor o igual
+        $gte: new Date(fecha_inicio), 
+        $lte: new Date(fecha_fin), 
       };
     }
     if (group_id) {
-      filters.grupo_id = group_id; // Filtro por group_id
+      filters.grupo_id = group_id; 
     }
 
     // Calcular el número de documentos a saltar según la página
-    const pageSize = 10; // Número de elementos por página
+    const pageSize = 10;
     const skip = (page - 1) * pageSize;
 
     // Obtener las tareas con filtros, paginación y limitación
@@ -236,9 +235,9 @@ exports.obtenerTarea = async (req, res) => {
 
     // Buscar la tarea por su ID
     const tarea = await Tarea.findById(id)
-      .populate("grupo_id", "nombre") // Opcional: Poblamos el grupo con su nombre
-      .populate("entregas.alumno_id", "nombre email") // Poblamos los datos de los alumnos que entregaron tareas
-      .populate("calificaciones.alumno_id", "nombre email"); // Poblamos los datos de los alumnos calificados
+      .populate("grupo_id", "nombre") 
+      .populate("entregas.alumno_id", "nombre email") 
+      .populate("calificaciones.alumno_id", "nombre email");
 
     // Si no se encuentra la tarea, retornar un error
     if (!tarea) {
@@ -249,30 +248,6 @@ exports.obtenerTarea = async (req, res) => {
     res.status(200).json(tarea);
   } catch (error) {
     res.status(500).json({ message: "Error interno del servidor" });
-  }
-};
-exports.obtenerArchivoTarea = async (req, res) => {
-  try {
-    const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
-    const tarea = await Tarea.findById(id); // Buscar la tarea por ID
-    
-    if (!tarea || !tarea.archivo) {
-      return res.status(404).json({ error: "Archivo de tarea no encontrado." });
-    }
-    
-    const rutaArchivo = path.join(__dirname, "..", tarea.archivo); // Obtener la ruta del archivo
-    
-    if (!fs.existsSync(rutaArchivo)) {
-      return res.status(404).json({ error: "Archivo no encontrado." });
-    }
-    
-    const archivoBuffer = fs.readFileSync(rutaArchivo); // Leer el archivo
-    const archivoBase64 = archivoBuffer.toString("base64"); // Convertir el archivo a Base64
-    
-    res.status(200).json({ archivo: archivoBase64 }); // Enviar el archivo en Base64 como respuesta
-  } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ error: "Error interno del servidor." });
   }
 };
 
@@ -336,52 +311,56 @@ exports.calificarTarea = async (req, res) => {
   }
 };
 
-exports.subirEntrega = async (req, res) => {
+exports.obtenerEntregasPorTarea = async (req, res) => {
   try {
-    const { id } = req.params; // ID de la tarea
-    const { alumno_id, archivo_entregado } = req.body; // Datos enviados en la solicitud
+    const { id } = req.params;
+    const { grupo_id } = req.query;
 
-    // Validar datos
-    if (!alumno_id || !archivo_entregado) {
-      return res
-        .status(400)
-        .json({ message: "Alumno ID y archivo son requeridos." });
+    if (!grupo_id) {
+      return res.status(400).json({ message: "El ID del grupo es requerido." });
     }
 
-    // Buscar la tarea
+    const tarea = await Tarea.findOne({ _id: id, grupo_id })
+      .populate("entregas.alumno_id", "nombre correo");
+
+    if (!tarea) {
+      return res.status(404).json({ message: "Tarea no encontrada o no pertenece al grupo especificado." });
+    }
+
+    res.status(200).json({
+      message: "Entregas obtenidas exitosamente.",
+      entregas: tarea.entregas,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: "Error interno del servidor." });
+  }
+};
+
+exports.subirEntrega = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { alumno_id, archivo_entregado, tipo_archivo, nombre_usuario } = req.body;
+
+    if (!alumno_id || !archivo_entregado || !tipo_archivo || !nombre_usuario) {
+      return res.status(400).json({ message: "Todos los campos son requeridos." });
+    }
+
     const tarea = await Tarea.findById(id);
     if (!tarea) {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
-    // Ruta donde se guardará el archivo
-    const uploadsDir = path.join(__dirname, "../uploads");
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true }); // Crear la carpeta si no existe
-    }
-
-    // Decodificar Base64 a Buffer
-    const base64Data = archivo_entregado.replace(
-      /^data:application\/pdf;base64,/,
-      ""
-    ); // Limpiar el prefijo Base64
-    const archivoBuffer = Buffer.from(base64Data, "base64");
-
-    // Generar nombre único para el archivo
-    const nombreArchivoFinal = `${alumno_id}_${Date.now()}.pdf`;
-    const rutaArchivo = path.join(uploadsDir, nombreArchivoFinal);
-
-    // Guardar archivo en el sistema de archivos
-    fs.writeFileSync(rutaArchivo, archivoBuffer);
-
-    // Crear la entrega
     const nuevaEntrega = {
+      _id: new mongoose.Types.ObjectId(), // ID único para la entrega
       alumno_id: new mongoose.Types.ObjectId(alumno_id),
-      archivo_entregado: `/uploads/${nombreArchivoFinal}`, // Guardamos solo la ruta
+      nombre_usuario,
+      archivo_entregado,
+      tipo_archivo,
       fecha_entrega: new Date(),
+      estatus: "Entregado"
     };
 
-    // Agregar la entrega a la tarea
     tarea.entregas.push(nuevaEntrega);
     await tarea.save();
 
@@ -394,46 +373,57 @@ exports.subirEntrega = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
+
 exports.eliminarEntrega = async (req, res) => {
   try {
-    const { tareaId } = req.params;
-    const { alumno_id } = req.body;
+    const { tareaId, entregaId } = req.params;
 
-    // Buscar la tarea por ID
     const tarea = await Tarea.findById(tareaId);
     if (!tarea) {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
-    // Buscar la entrega del alumno en la tarea
     const entregaIndex = tarea.entregas.findIndex(
-      (entrega) => entrega.alumno_id.toString() === alumno_id
+      (entrega) => entrega._id.toString() === entregaId
     );
+
     if (entregaIndex === -1) {
-      return res
-        .status(404)
-        .json({ message: "Entrega no encontrada para este alumno." });
+      return res.status(404).json({ message: "Entrega no encontrada." });
     }
 
-    // Obtener la ruta del archivo entregado
-    const archivoRuta = path.join(
-      __dirname,
-      "..",
-      tarea.entregas[entregaIndex].archivo_entregado
-    );
-
-    // Eliminar el archivo físico, si existe
-    if (fs.existsSync(archivoRuta)) {
-      fs.unlinkSync(archivoRuta); // Eliminar el archivo
-    }
-
-    // Eliminar la entrega del alumno en el array de entregas
     tarea.entregas.splice(entregaIndex, 1);
-
-    // Guardar los cambios en la tarea
     await tarea.save();
 
     res.status(200).json({ message: "Entrega eliminada exitosamente." });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: "Error interno del servidor." });
+  }
+};
+
+exports.actualizarEntrega = async (req, res) => {
+  try {
+    const { tareaId, entregaId } = req.params;
+    const { archivo_entregado, tipo_archivo, estatus, nombre_usuario } = req.body;
+
+    const tarea = await Tarea.findById(tareaId);
+    if (!tarea) {
+      return res.status(404).json({ message: "Tarea no encontrada." });
+    }
+
+    const entrega = tarea.entregas.id(entregaId);
+    if (!entrega) {
+      return res.status(404).json({ message: "Entrega no encontrada." });
+    }
+
+    if (archivo_entregado) entrega.archivo_entregado = archivo_entregado;
+    if (tipo_archivo) entrega.tipo_archivo = tipo_archivo;
+    if (estatus) entrega.estatus = estatus;
+    if (nombre_usuario) entrega.nombre_usuario = nombre_usuario;
+
+    await tarea.save();
+
+    res.status(200).json({ message: "Entrega actualizada exitosamente.", entrega });
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ message: "Error interno del servidor." });

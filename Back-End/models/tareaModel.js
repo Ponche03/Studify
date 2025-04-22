@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+
 const tareaSchema = new mongoose.Schema({
   titulo: { type: String, required: true },
   descripcion: { type: String },
@@ -13,9 +14,17 @@ const tareaSchema = new mongoose.Schema({
   puntos_totales: { type: Number, required: true },
   entregas: [
     {
+      _id: { type: mongoose.Schema.Types.ObjectId, auto: true }, 
       alumno_id: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario" },
+      nombre_usuario: { type: String }, 
       archivo_entregado: String,
-      fecha_entrega: Date
+      tipo_archivo: { type: String },
+      fecha_entrega: Date,
+      estatus: { 
+        type: String, 
+        enum: ['Pendiente', 'Entregado', 'Revisado'], 
+        default: 'Pendiente' 
+      }
     }
   ],
   calificaciones: [
@@ -25,6 +34,5 @@ const tareaSchema = new mongoose.Schema({
     }
   ]
 });
-
 
 module.exports = mongoose.model("Tarea", tareaSchema);
