@@ -18,19 +18,19 @@ router.get("/tasks", taskController.obtenerTareas);
 // Ruta para obtener información detallada de una tarea
 router.get("/tasks/:id", taskController.obtenerTarea);
 
-// Ruta para obtener el archivo asociado a una tarea en base64
-router.get("/tasks/:id/getTaskFile", taskController.obtenerArchivoTarea);
-
-// Ruta para subir archivo a una tarea (entrega)
-router.post("/tasks/:id/uploadFile", taskController.subirEntrega);
-
-// Ruta para subir archivo a una tarea (entrega)
-router.delete("/tasks/:id/deleteFile", taskController.eliminarEntrega);
-
 // Ruta para calificar una tarea
-router.post("/tasks/:id/gradeTask", taskController.calificarTarea);
+router.post("/tasks/:id/gradeTask", taskController.calificarEntrega);
+
+// Ruta para subir una entrega a una tarea
+router.post("/tasks/:id/uploads", taskController.subirEntrega);
+
+// Ruta para obtener todas las entregas de una tarea por grupo
+router.get("/tasks/:id/uploads", taskController.obtenerEntregasPorTarea);
 
 // Ruta para actualizar una entrega específica de una tarea
 router.put("/tasks/:tareaId/uploads/:entregaId", taskController.actualizarEntrega);
+
+// Ruta para eliminar una entrega específica de una tarea
+router.delete("/tasks/:tareaId/uploads/:entregaId", taskController.eliminarEntrega);
 
 module.exports = router;

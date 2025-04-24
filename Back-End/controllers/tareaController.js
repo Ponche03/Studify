@@ -251,7 +251,7 @@ exports.obtenerTarea = async (req, res) => {
   }
 };
 
-exports.calificarTarea = async (req, res) => {
+exports.calificarEntrega = async (req, res) => {
   try {
     const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
     const { alumno_id, calificacion } = req.body; // Obtener el alumno y la calificación desde el cuerpo de la solicitud
