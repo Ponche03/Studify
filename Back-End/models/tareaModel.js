@@ -5,13 +5,14 @@ const tareaSchema = new mongoose.Schema({
   descripcion: { type: String },
   fecha_vencimiento: { type: Date },
   archivo: { type: String },
+  tipo_archivo: { type: String },
   grupo_id: { type: mongoose.Schema.Types.ObjectId, ref: "Grupo", required: true },
   estatus: { 
     type: String, 
     enum: ['Abierta', 'Cerrada'], 
     required: true 
   },
-  puntos_totales: { type: Number, required: true },
+  puntos_totales: { type: Number },
   entregas: [
     {
       _id: { type: mongoose.Schema.Types.ObjectId, auto: true }, 
@@ -24,7 +25,8 @@ const tareaSchema = new mongoose.Schema({
         type: String, 
         enum: ['Pendiente', 'Entregado', 'Revisado'], 
         default: 'Pendiente' 
-      }
+      },
+      calificacion: { type: Number, min: 0, max: 100 }
     }
   ],
   calificaciones: [

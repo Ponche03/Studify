@@ -11,6 +11,7 @@ exports.crearTarea = async (req, res) => {
       descripcion,
       fecha_vencimiento,
       archivo,
+      tipo_archivo,
       grupo_id,
       puntos_totales,
       estatus,
@@ -51,6 +52,7 @@ exports.crearTarea = async (req, res) => {
       descripcion,
       fecha_vencimiento: fechaVencimiento,
       archivo: archivo || null,
+      tipo_archivo: tipo_archivo || null,
       grupo_id,
       puntos_totales,
       estatus: estatus || "Abierta",
@@ -68,6 +70,7 @@ exports.crearTarea = async (req, res) => {
         descripcion: nuevaTarea.descripcion,
         fecha_vencimiento: nuevaTarea.fecha_vencimiento,
         archivo: nuevaTarea.archivo,
+        tipo_archivo: nuevaTarea.tipo_archivo,
         grupo_id: nuevaTarea.grupo_id,
         puntos_totales: nuevaTarea.puntos_totales,
         estatus: nuevaTarea.estatus,
@@ -87,6 +90,7 @@ exports.actualizarTarea = async (req, res) => {
       descripcion,
       fecha_vencimiento,
       archivo,
+      tipo_archivo,
       puntos_totales,
       estatus,
     } = req.body;
@@ -102,44 +106,15 @@ exports.actualizarTarea = async (req, res) => {
     if (estatus && !estatusValido.includes(estatus)) {
       return res.status(400).json({ error: "Estatus no válido" });
     }
-
-    if (archivo) {
-      // Ruta donde se guardará el archivo dentro de la carpeta "uploads"
-      const uploadsDir = path.join(__dirname, "../uploads");
     
-      // Verificar si la carpeta 'uploads' existe, si no, crearla
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true }); // Crear la carpeta si no existe
-      }
-    
-      // Decodificar Base64 a Buffer
-      const base64Data = archivo.replace(
-        /^data:application\/pdf;base64,/,
-        ""
-      ); // Limpiar el prefijo Base64
-      const archivoBuffer = Buffer.from(base64Data, "base64");
-    
-      // Generar nombre único para el archivo
-      const nombreArchivoFinal = `${id}_${Date.now()}.pdf`;
-    
-      // Ruta relativa para el archivo dentro de "uploads" usando el formato POSIX para separar directorios
-      const rutaArchivo = path.posix.join("/uploads", nombreArchivoFinal); // Usar / como separador
-    
-      // Guardar archivo en el sistema de archivos (ubicado en la carpeta 'uploads')
-      fs.writeFileSync(path.join(__dirname, "../", rutaArchivo), archivoBuffer);
-    
-      // Actualizar la ruta del archivo en el objeto tarea (solo guardará la ruta relativa)
-      tarea.archivo = rutaArchivo;
-    }
-    
-
     // Actualizar los campos de la tarea (solo los proporcionados en el cuerpo de la solicitud)
     tarea.titulo = titulo || tarea.titulo;
     tarea.descripcion = descripcion || tarea.descripcion;
     tarea.fecha_vencimiento = fecha_vencimiento || tarea.fecha_vencimiento;
     tarea.puntos_totales = puntos_totales || tarea.puntos_totales;
     tarea.estatus = estatus || tarea.estatus;
-    tarea.archivo = tarea.archivo;
+    tarea.archivo = archivo ||  tarea.archivo;
+    tarea.tipo_archivo = tipo_archivo || tarea.tipo_archivo;
 
     // Guardar los cambios en la base de datos
     await tarea.save();
@@ -153,6 +128,7 @@ exports.actualizarTarea = async (req, res) => {
         descripcion: tarea.descripcion,
         fecha_vencimiento: tarea.fecha_vencimiento,
         archivo: tarea.archivo,
+        tipo_archivo: tarea.tipo_archivo,
         grupo_id: tarea.grupo_id,
         puntos_totales: tarea.puntos_totales,
         estatus: tarea.estatus,
@@ -253,10 +229,9 @@ exports.obtenerTarea = async (req, res) => {
 
 exports.calificarEntrega = async (req, res) => {
   try {
-    const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
-    const { alumno_id, calificacion } = req.body; // Obtener el alumno y la calificación desde el cuerpo de la solicitud
+    const { id } = req.params;
+    const { alumno_id, calificacion } = req.body;
 
-    // Validación básica de los datos
     if (!alumno_id || calificacion === undefined) {
       return res
         .status(400)
@@ -264,7 +239,7 @@ exports.calificarEntrega = async (req, res) => {
     }
 
     // Validar que la calificación esté en el rango permitido
-    if (calificacion < 0 || calificacion >= 100) {
+    if (calificacion < 0 || calificacion > 10) {
       return res
         .status(400)
         .json({ message: "La calificación debe estar entre 0 y 10." });
@@ -273,40 +248,36 @@ exports.calificarEntrega = async (req, res) => {
     // Buscar la tarea por su ID
     const tarea = await Tarea.findById(id);
 
-    // Si la tarea no se encuentra, retornar un error
     if (!tarea) {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
-    // Buscar si ya existe una calificación para ese alumno
-    const calificacionExistente = tarea.calificaciones.find(
-      (cal) => cal.alumno_id.toString() === alumno_id
+    // Buscar la entrega del alumno
+    const entrega = tarea.entregas.find(
+      (ent) => ent.alumno_id.toString() === alumno_id
     );
 
-    // Si ya existe una calificación, actualizarla
-    if (calificacionExistente) {
-      calificacionExistente.calificacion = calificacion;
-    } else {
-      // Si no existe, agregar una nueva calificación
-      tarea.calificaciones.push({
-        alumno_id: new mongoose.Types.ObjectId(alumno_id), // CORREGIDO
-        calificacion,
-      });
+    if (!entrega) {
+      return res.status(404).json({ message: "Entrega no encontrada para el alumno." });
     }
 
-    // Guardar la tarea con la nueva calificación
+    // Añadir o actualizar la calificación directamente en la entrega
+    entrega.calificacion = calificacion;
+    entrega.estatus = "Revisado";
+
+    // Guardar cambios
     await tarea.save();
 
-    // Devolver la respuesta exitosa con los datos de la calificación
     res.status(200).json({
-      message: "Calificación registrada exitosamente",
-      calificacion: {
+      message: "Entrega calificada exitosamente",
+      entrega: {
         alumno_id,
         calificacion,
+        estatus: entrega.estatus
       },
     });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error al calificar entrega:", error);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
@@ -404,7 +375,7 @@ exports.eliminarEntrega = async (req, res) => {
 exports.actualizarEntrega = async (req, res) => {
   try {
     const { tareaId, entregaId } = req.params;
-    const { archivo_entregado, tipo_archivo, estatus, nombre_usuario } = req.body;
+    const { archivo_entregado, tipo_archivo, estatus } = req.body;
 
     const tarea = await Tarea.findById(tareaId);
     if (!tarea) {
@@ -419,7 +390,6 @@ exports.actualizarEntrega = async (req, res) => {
     if (archivo_entregado) entrega.archivo_entregado = archivo_entregado;
     if (tipo_archivo) entrega.tipo_archivo = tipo_archivo;
     if (estatus) entrega.estatus = estatus;
-    if (nombre_usuario) entrega.nombre_usuario = nombre_usuario;
 
     await tarea.save();
 
