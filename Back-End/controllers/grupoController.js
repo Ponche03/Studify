@@ -5,7 +5,7 @@ const Post = require("../models/postModel");
 
 exports.crearGrupo = async (req, res) => {
   try {
-    const { nombre, descripcion, maestro_id } = req.body;
+    const { nombre, descripcion, maestro_id, foto } = req.body;
 
     // Verificar si el maestro existe y su rol es "maestro"
     const maestro = await User.findById(maestro_id);
@@ -20,6 +20,7 @@ exports.crearGrupo = async (req, res) => {
       nombre,
       descripcion,
       maestro_id,
+      foto,
       alumnos: [], // Inicialmente sin alumnos
     });
 
@@ -35,6 +36,7 @@ exports.crearGrupo = async (req, res) => {
         descripcion: nuevoGrupo.descripcion,
         maestro_id: nuevoGrupo.maestro_id,
         alumnos: nuevoGrupo.alumnos,
+        foto: nuevoGrupo.foto
       },
     });
   } catch (error) {
@@ -141,25 +143,31 @@ exports.desarchivarGrupo = async (req, res) => {
 
 exports.obtenerGrupos = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query; 
+    const { page = 1, limit = 10, estado } = req.query;
 
-    const usuarioId = req.user.id; 
-    
-    // Buscar grupos donde el usuario es maestro o alumno
-    const grupos = await Grupo.find({
-      $or: [{ maestro_id: usuarioId }, { "alumnos.alumno_id": usuarioId }],
-    })
+    const usuarioId = req.user.id;
+
+   let filtros = {
+  $or: [{ maestro_id: usuarioId }, { "alumnos.alumno_id": usuarioId }],
+};
+
+if (estado === "archivado") {
+  filtros.archivado = true;
+} else if (estado === "activo") {
+  filtros.archivado = false;
+}
+    // Buscar grupos paginados
+    const grupos = await Grupo.find(filtros)
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .populate("maestro_id", "nombre") // Opcional: Traer nombre del maestro
+      .populate("maestro_id", "nombre")
       .select("_id nombre descripcion foto archivado maestro_id");
 
-    // Contar el total de grupos
-    const total = await Grupo.countDocuments({
-      $or: [{ maestro_id: usuarioId }, { "alumnos.alumno_id": usuarioId }],
-    });
+    // Contar total de grupos
+    const total = await Grupo.countDocuments(filtros);
+    const totalPages = Math.ceil(total / limit);
 
-    // Formatear la respuesta con estado del grupo
+    // Formatear los datos
     const formattedGroups = grupos.map((grupo) => ({
       _id: grupo._id,
       nombre: grupo.nombre,
@@ -172,6 +180,7 @@ exports.obtenerGrupos = async (req, res) => {
     res.status(200).json({
       total,
       page: Number(page),
+      totalPages,
       groups: formattedGroups,
     });
   } catch (error) {
@@ -208,6 +217,7 @@ exports.editarGrupo = async (req, res) => {
         descripcion: grupo.descripcion,
         maestro_id: grupo.maestro_id,
         alumnos: grupo.alumnos.map((a) => a.alumno_id),
+        foto: grupo.foto
       },
     });
   } catch (error) {
