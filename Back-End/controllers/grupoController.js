@@ -141,10 +141,10 @@ exports.desarchivarGrupo = async (req, res) => {
 
 exports.obtenerGrupos = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query; // Recibimos page y limit de los query parameters.
+    const { page = 1, limit = 10 } = req.query; 
 
-    const usuarioId = req.user.id; // Se asume que el usuario está autenticado y el ID está en `req.user`
-
+    const usuarioId = req.user.id; 
+    
     // Buscar grupos donde el usuario es maestro o alumno
     const grupos = await Grupo.find({
       $or: [{ maestro_id: usuarioId }, { "alumnos.alumno_id": usuarioId }],
