@@ -36,7 +36,7 @@ exports.crearGrupo = async (req, res) => {
         descripcion: nuevoGrupo.descripcion,
         maestro_id: nuevoGrupo.maestro_id,
         alumnos: nuevoGrupo.alumnos,
-        foto: nuevoGrupo.foto
+        foto: nuevoGrupo.foto,
       },
     });
   } catch (error) {
@@ -58,13 +58,19 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
     // Verificar si el alumno existe
     const student = await User.findById(alumno_id);
     if (!student || student.rol !== "alumno") {
-      return res.status(400).json({ error: "El alumno no existe o no tiene el rol adecuado." });
+      return res
+        .status(400)
+        .json({ error: "El alumno no existe o no tiene el rol adecuado." });
     }
 
     // Verificar si el alumno ya está en el grupo
-    const alumnoExistente = group.alumnos.some(alumno => alumno.alumno_id.toString() === alumno_id);
+    const alumnoExistente = group.alumnos.some(
+      (alumno) => alumno.alumno_id.toString() === alumno_id
+    );
     if (alumnoExistente) {
-      return res.status(400).json({ error: "El alumno ya está en este grupo." });
+      return res
+        .status(400)
+        .json({ error: "El alumno ya está en este grupo." });
     }
 
     // Determinar el número de lista automáticamente
@@ -81,7 +87,9 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
     });
   } catch (error) {
     console.error(error); // Esto te mostrará el error completo en la consola
-    res.status(500).json({ error: "Error interno del servidor.", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Error interno del servidor.", details: error.message });
   }
 };
 
@@ -147,15 +155,15 @@ exports.obtenerGrupos = async (req, res) => {
 
     const usuarioId = req.user.id;
 
-   let filtros = {
-  $or: [{ maestro_id: usuarioId }, { "alumnos.alumno_id": usuarioId }],
-};
+    let filtros = {
+      $or: [{ maestro_id: usuarioId }, { "alumnos.alumno_id": usuarioId }],
+    };
 
-if (estado === "archivado") {
-  filtros.archivado = true;
-} else if (estado === "activo") {
-  filtros.archivado = false;
-}
+    if (estado === "archivado") {
+      filtros.archivado = true;
+    } else if (estado === "activo") {
+      filtros.archivado = false;
+    }
     // Buscar grupos paginados
     const grupos = await Grupo.find(filtros)
       .limit(limit * 1)
@@ -217,7 +225,7 @@ exports.editarGrupo = async (req, res) => {
         descripcion: grupo.descripcion,
         maestro_id: grupo.maestro_id,
         alumnos: grupo.alumnos.map((a) => a.alumno_id),
-        foto: grupo.foto
+        foto: grupo.foto,
       },
     });
   } catch (error) {
@@ -256,7 +264,9 @@ exports.obtenerGrupoConPosts = async (req, res) => {
     });
   } catch (error) {
     console.error("Error al obtener grupo con posts:", error);
-    res.status(500).json({ error: error.message || "Error interno del servidor" });
+    res
+      .status(500)
+      .json({ error: error.message || "Error interno del servidor" });
   }
 };
 
@@ -294,7 +304,9 @@ exports.obtenerAlumnosDeGrupo = async (req, res) => {
       alumnos: alumnosConNumeroLista,
     });
   } catch (error) {
-    console.error("Error en obtenerAlumnosDeGrupo:", error); 
-    res.status(500).json({ error: "Error interno del servidor", details: error.message });
+    console.error("Error en obtenerAlumnosDeGrupo:", error);
+    res
+      .status(500)
+      .json({ error: "Error interno del servidor", details: error.message });
   }
 };

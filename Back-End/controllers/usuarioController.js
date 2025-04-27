@@ -131,3 +131,22 @@ exports.borrarUsuario = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
+
+exports.obtenerUsuarioPorEmail = async (req, res) => {
+  try {
+    const { email } = req.query; 
+    if (!email) {
+      return res.status(400).json({ error: "El parámetro 'email' es requerido." });
+    }
+
+    const usuario = await User.findOne({ email }).select("-password");
+
+    if (!usuario) {
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+
+    res.status(200).json(usuario);
+  } catch (error) {
+    res.status(500).json({ error: "Error interno del servidor." });
+  }
+};

@@ -163,7 +163,6 @@ exports.eliminarTarea = async (req, res) => {
 
 exports.obtenerTareas = async (req, res) => {
   try {
-
     const { pagina = 1, status, fecha_inicio, fecha_fin, group_id } = req.query;
 
     // Convertir la página a número
@@ -172,19 +171,19 @@ exports.obtenerTareas = async (req, res) => {
     // Definir los filtros
     const filters = {};
     if (status) {
-      filters.estado = status;
-    }
+      filters.estatus = status;
+    }    
     if (fecha_inicio && fecha_fin) {
       filters.fecha_vencimiento = {
-        $gte: new Date(fecha_inicio), 
-        $lte: new Date(fecha_fin), 
+        $gte: new Date(fecha_inicio),
+        $lte: new Date(fecha_fin),
       };
     }
     if (group_id) {
-      filters.grupo_id = group_id; 
+      filters.grupo_id = group_id;
     }
 
-    // Calcular el número de documentos a saltar según la página
+    // Definir paginación
     const pageSize = 10;
     const skip = (page - 1) * pageSize;
 
@@ -193,11 +192,13 @@ exports.obtenerTareas = async (req, res) => {
 
     // Contar el total de tareas que cumplen los filtros
     const totalTasks = await Tarea.countDocuments(filters);
+    const totalPages = Math.ceil(totalTasks / pageSize);
 
-    // Responder con las tareas, total y página actual
+    // Responder con las tareas, total, página actual y total de páginas
     res.status(200).json({
       total: totalTasks,
       page: page,
+      totalPages: totalPages,
       tasks: tasks,
     });
   } catch (error) {
