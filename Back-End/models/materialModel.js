@@ -6,7 +6,8 @@ const MaterialClaseSchema = new mongoose.Schema({
   titulo: { type: String, required: true },
   descripcion: { type: String, required: true },
   archivo: { type: String, required: true },
-  fecha_subida: { type: Date, default: Date.now }
+  fecha_subida: { type: Date, default: Date.now },
+  tipo: {type: String, required: true}
 });
 
 module.exports = mongoose.model("MaterialClase", MaterialClaseSchema);
