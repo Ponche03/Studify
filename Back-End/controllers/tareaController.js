@@ -163,16 +163,14 @@ exports.eliminarTarea = async (req, res) => {
 
 exports.obtenerTareas = async (req, res) => {
   try {
-    const { pagina = 1, status, fecha_inicio, fecha_fin, group_id } = req.query;
+    const { pagina = 1, status, fecha_inicio, fecha_fin, group_id, orden = 'asc' } = req.query;
 
-    // Convertir la página a número
     const page = parseInt(pagina);
 
-    // Definir los filtros
     const filters = {};
     if (status) {
       filters.estatus = status;
-    }    
+    }
     if (fecha_inicio && fecha_fin) {
       filters.fecha_vencimiento = {
         $gte: new Date(fecha_inicio),
@@ -183,18 +181,29 @@ exports.obtenerTareas = async (req, res) => {
       filters.grupo_id = group_id;
     }
 
-    // Definir paginación
     const pageSize = 10;
     const skip = (page - 1) * pageSize;
+    const sortOrder = orden === 'desc' ? -1 : 1;
 
-    // Obtener las tareas con filtros, paginación y limitación
-    const tasks = await Tarea.find(filters).skip(skip).limit(pageSize);
+    const tasksRaw = await Tarea.find(filters)
+      .populate('grupo_id', 'nombre') // poblamos el nombre del grupo
+      .sort({ fecha_vencimiento: sortOrder })
+      .skip(skip)
+      .limit(pageSize);
 
-    // Contar el total de tareas que cumplen los filtros
+    const tasks = tasksRaw.map(task => {
+      const taskObj = task.toObject();
+      taskObj.grupo = taskObj.grupo_id ? {
+        _id: taskObj.grupo_id._id,
+        nombre: taskObj.grupo_id.nombre
+      } : null;
+      delete taskObj.grupo_id;
+      return taskObj;
+    });
+
     const totalTasks = await Tarea.countDocuments(filters);
     const totalPages = Math.ceil(totalTasks / pageSize);
 
-    // Responder con las tareas, total, página actual y total de páginas
     res.status(200).json({
       total: totalTasks,
       page: page,
@@ -211,17 +220,25 @@ exports.obtenerTarea = async (req, res) => {
     const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
 
     // Buscar la tarea por su ID
-    const tarea = await Tarea.findById(id)
+    const tareaRaw = await Tarea.findById(id)
       .populate("grupo_id", "nombre") 
       .populate("entregas.alumno_id", "nombre email") 
       .populate("calificaciones.alumno_id", "nombre email");
 
     // Si no se encuentra la tarea, retornar un error
-    if (!tarea) {
+    if (!tareaRaw) {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
-    // Devolver la tarea con las entregas y calificaciones asociadas
+    // Transformar: cambiar grupo_id a grupo
+    const tarea = tareaRaw.toObject();
+    tarea.grupo = tarea.grupo_id ? {
+      _id: tarea.grupo_id._id,
+      nombre: tarea.grupo_id.nombre
+    } : null;
+    delete tarea.grupo_id; 
+
+    // Devolver la tarea con las entregas, calificaciones y grupo organizado
     res.status(200).json(tarea);
   } catch (error) {
     res.status(500).json({ message: "Error interno del servidor" });
