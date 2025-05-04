@@ -28,5 +28,7 @@ router.get("/groups/:id", authMiddleware, grupoController.obtenerGrupoConPosts);
 // Ruta para obtener los alumnos de un grupo específico
 router.get("/groups/:id/getStudents", authMiddleware, grupoController.obtenerAlumnosDeGrupo);
 
+// Ruta para eliminar a un alumno de un grupo
+router.delete("/groups/:group_id/removeStudent/:student_id", authMiddleware, grupoController.eliminarAlumnoDeGrupo);
 
 module.exports = router;
