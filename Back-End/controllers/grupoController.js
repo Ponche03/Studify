@@ -310,3 +310,49 @@ exports.obtenerAlumnosDeGrupo = async (req, res) => {
       .json({ error: "Error interno del servidor", details: error.message });
   }
 };
+
+
+exports.eliminarAlumnoDeGrupo = async (req, res) => {
+  try {
+    const { group_id, student_id } = req.params;
+
+    // Verificar si el grupo existe
+    const group = await Grupo.findById(group_id);
+    if (!group) {
+      return res.status(404).json({ error: "El grupo no existe." });
+    }
+
+    // Verificar si el alumno está en el grupo
+    const index = group.alumnos.findIndex(
+      (alumno) => alumno.alumno_id.toString() === student_id
+    );
+
+    if (index === -1) {
+      return res
+        .status(400)
+        .json({ error: "El alumno no pertenece a este grupo." });
+    }
+
+    // Eliminar al alumno del grupo
+    group.alumnos.splice(index, 1);
+
+    // Recalcular los números de lista
+    group.alumnos = group.alumnos.map((alumno, i) => ({
+      ...alumno.toObject(),
+      numero_lista: i + 1,
+    }));
+
+    await group.save();
+
+    res.status(200).json({
+      message: "Alumno eliminado exitosamente",
+      grupo_id: group._id,
+      alumnos: group.alumnos,
+    });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Error interno del servidor.", details: error.message });
+  }
+};
