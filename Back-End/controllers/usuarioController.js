@@ -132,21 +132,29 @@ exports.borrarUsuario = async (req, res) => {
   }
 };
 
-exports.obtenerUsuarioPorEmail = async (req, res) => {
+exports.obtenerUsuariosPorBusqueda = async (req, res) => {
   try {
-    const { email } = req.query; 
-    if (!email) {
-      return res.status(400).json({ error: "El parámetro 'email' es requerido." });
+    const { q } = req.query; 
+
+    if (!q) {
+      return res.status(400).json({ error: "El parámetro 'q' es requerido." });
     }
 
-    const usuario = await User.findOne({ email }).select("-password");
+    // Búsqueda parcial insensible a mayúsculas/minúsculas en 'nombre' o 'email'
+    const usuarios = await User.find({
+      $or: [
+        { nombre: { $regex: q, $options: "i" } },
+        { email: { $regex: q, $options: "i" } }
+      ]
+    }).select("-password");
 
-    if (!usuario) {
-      return res.status(404).json({ error: "Usuario no encontrado." });
+    if (usuarios.length === 0) {
+      return res.status(404).json({ error: "No se encontraron usuarios." });
     }
 
-    res.status(200).json(usuario);
+    res.status(200).json(usuarios);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };

@@ -19,7 +19,7 @@ router.put("/users/:id", authMiddleware, usuarioController.editarUsuario);
 // Ruta para eliminar un usuario
 router.delete("/users/:id", authMiddleware, usuarioController.borrarUsuario);
 
-// Ruta para obtener usuario por email (usando query)
-router.get("/users", authMiddleware, usuarioController.obtenerUsuarioPorEmail);
+// Ruta para obtener usuario por busqueda (usando query)
+router.get("/users", authMiddleware, usuarioController.obtenerUsuariosPorBusqueda);
 
 module.exports = router;

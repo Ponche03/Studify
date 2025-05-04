@@ -28,12 +28,6 @@ const tareaSchema = new mongoose.Schema({
       },
       calificacion: { type: Number, min: 0, max: 100 }
     }
-  ],
-  calificaciones: [
-    {
-      alumno_id: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario" },
-      calificacion: Number
-    }
   ]
 });
 

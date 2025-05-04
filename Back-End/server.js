@@ -3,13 +3,15 @@ const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require('cors');
 
+require('./cron/actualizarTareas'); 
+
 // Load environment variables
 dotenv.config();
 
 // Middleware for parsing all upcoming requests into JSON
 const app = express();
 
-// Increase the request body size limit (e.g., 50MB)
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
@@ -20,8 +22,15 @@ const MONGO_URI = process.env.MONGO_URI;
 
 // Connect to MongoDB
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log("Connected to MongoDB"))
+  .then(async () => {
+    console.log("Connected to MongoDB");
+
+    // Verificar tareas vencidas al iniciar el servidor
+    const actualizarTareasVencidas = require('./utils/actualizarTareas');
+    await actualizarTareasVencidas();
+  })
   .catch(err => console.log(err));
+
 
 // Routes
 app.use("/api", require("./routes/usuarioRoutes"));
