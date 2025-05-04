@@ -1,12 +1,15 @@
 const express = require("express");
 const router = express.Router();
-const { obtenerReporteDesempeno, obtenerReporteTareas } = require("../controllers/reportesController");
+const { obtenerReporteDesempeno, obtenerReporteTareas, obtenerReporteAsistencia} = require("../controllers/reportesController");
 const authMiddleware = require("../middlewares/authMiddleware");
 
 // Ruta para reportes de desempeño general
-router.get("/reports/performance", authMiddleware, obtenerReporteDesempeno);
+router.get("/reports/asistencia", authMiddleware, obtenerReporteAsistencia);
 
 // Ruta para reportes de tareas y evaluaciones
-router.get("/reports/tasks", authMiddleware, obtenerReporteTareas);
+router.get("/reports/tareas", authMiddleware, obtenerReporteTareas);
+
+// Ruta para reportes de tareas y evaluaciones
+router.get("/reports/desempeño", authMiddleware, obtenerReporteDesempeno);
 
 module.exports = router;

@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Tarea = require("../models/tareaModel");
 const Grupo = require("../models/grupoModel");
+const Usuario = require("../models/usuarioModel");
 const fs = require("fs");
 const path = require("path");
 
@@ -163,30 +164,60 @@ exports.eliminarTarea = async (req, res) => {
 
 exports.obtenerTareas = async (req, res) => {
   try {
-    const { pagina = 1, status, fecha_inicio, fecha_fin, group_id, orden = 'asc' } = req.query;
+    const { 
+      pagina = 1, 
+      status, 
+      fecha_inicio, 
+      fecha_fin, 
+      group_id, 
+      orden = 'asc', 
+      titulo
+    } = req.query;
 
     const page = parseInt(pagina);
-
     const filters = {};
+    const userId = req.user.id;
+    const userRole = req.user.rol;
+
+    let gruposRelevantes = [];
+
+    if (userRole === 'maestro') {
+      const grupos = await Grupo.find({ maestro_id: userId }).select('_id');
+      gruposRelevantes = grupos.map(g => g._id.toString());
+    } else if (userRole === 'alumno') {
+      const grupos = await Grupo.find({ "alumnos.alumno_id": userId }).select('_id');
+      gruposRelevantes = grupos.map(g => g._id.toString());
+    }
+
+    // Filtrar por grupos relevantes
+    filters.grupo_id = { $in: gruposRelevantes };
+
     if (status) {
       filters.estatus = status;
     }
+
     if (fecha_inicio && fecha_fin) {
       filters.fecha_vencimiento = {
         $gte: new Date(fecha_inicio),
         $lte: new Date(fecha_fin),
       };
     }
-    if (group_id) {
+
+    if (group_id && gruposRelevantes.includes(group_id)) {
       filters.grupo_id = group_id;
     }
+
+    if (titulo) {
+      filters.titulo = { $regex: `^${titulo}$`, $options: 'i' };
+    }
+    
 
     const pageSize = 10;
     const skip = (page - 1) * pageSize;
     const sortOrder = orden === 'desc' ? -1 : 1;
 
     const tasksRaw = await Tarea.find(filters)
-      .populate('grupo_id', 'nombre') // poblamos el nombre del grupo
+      .populate('grupo_id', 'nombre')
       .sort({ fecha_vencimiento: sortOrder })
       .skip(skip)
       .limit(pageSize);
@@ -211,19 +242,19 @@ exports.obtenerTareas = async (req, res) => {
       tasks: tasks,
     });
   } catch (error) {
+    console.error("Error al obtener tareas:", error);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
 
 exports.obtenerTarea = async (req, res) => {
   try {
-    const { id } = req.params; // Obtener el ID de la tarea desde los parámetros de la URL
+    const { id } = req.params; 
 
     // Buscar la tarea por su ID
     const tareaRaw = await Tarea.findById(id)
       .populate("grupo_id", "nombre") 
-      .populate("entregas.alumno_id", "nombre email") 
-      .populate("calificaciones.alumno_id", "nombre email");
+      .populate("entregas.alumno_id", "nombre email");
 
     // Si no se encuentra la tarea, retornar un error
     if (!tareaRaw) {
@@ -238,7 +269,7 @@ exports.obtenerTarea = async (req, res) => {
     } : null;
     delete tarea.grupo_id; 
 
-    // Devolver la tarea con las entregas, calificaciones y grupo organizado
+    // Devolver la tarea con las entregas y grupo organizado
     res.status(200).json(tarea);
   } catch (error) {
     res.status(500).json({ message: "Error interno del servidor" });
@@ -257,10 +288,10 @@ exports.calificarEntrega = async (req, res) => {
     }
 
     // Validar que la calificación esté en el rango permitido
-    if (calificacion < 0 || calificacion > 10) {
+    if (calificacion < 0 || calificacion > 100) {
       return res
         .status(400)
-        .json({ message: "La calificación debe estar entre 0 y 10." });
+        .json({ message: "La calificación debe estar entre 0 y 100." });
     }
 
     // Buscar la tarea por su ID
@@ -331,8 +362,8 @@ exports.subirEntrega = async (req, res) => {
     const { id } = req.params;
     const { alumno_id, archivo_entregado, tipo_archivo, nombre_usuario } = req.body;
 
-    if (!alumno_id || !archivo_entregado || !tipo_archivo || !nombre_usuario) {
-      return res.status(400).json({ message: "Todos los campos son requeridos." });
+    if (!alumno_id || !archivo_entregado || !tipo_archivo) {
+      return res.status(400).json({ message: "Los campos alumno_id, archivo_entregado y tipo_archivo son requeridos." });
     }
 
     const tarea = await Tarea.findById(id);
@@ -340,10 +371,20 @@ exports.subirEntrega = async (req, res) => {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
+    let nombre = nombre_usuario;
+
+    if (!nombre_usuario) {
+      const alumno = await Usuario.findById(alumno_id);
+      if (!alumno) {
+        return res.status(404).json({ message: "Alumno no encontrado." });
+      }
+      nombre = alumno.nombre;
+    }
+
     const nuevaEntrega = {
-      _id: new mongoose.Types.ObjectId(), // ID único para la entrega
+      _id: new mongoose.Types.ObjectId(),
       alumno_id: new mongoose.Types.ObjectId(alumno_id),
-      nombre_usuario,
+      nombre_usuario: nombre,
       archivo_entregado,
       tipo_archivo,
       fecha_entrega: new Date(),
