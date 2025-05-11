@@ -134,27 +134,39 @@ exports.borrarUsuario = async (req, res) => {
 
 exports.obtenerUsuariosPorBusqueda = async (req, res) => {
   try {
-    const { q } = req.query; 
+    const { q = "", page = 1, limit = 10 } = req.query;
 
     if (!q) {
       return res.status(400).json({ error: "El parámetro 'q' es requerido." });
     }
 
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
     // Búsqueda parcial insensible a mayúsculas/minúsculas en 'nombre' o 'email'
-    const usuarios = await User.find({
+    const filter = {
       $or: [
         { nombre: { $regex: q, $options: "i" } },
         { email: { $regex: q, $options: "i" } }
       ]
-    }).select("-password");
+    };
 
-    if (usuarios.length === 0) {
-      return res.status(404).json({ error: "No se encontraron usuarios." });
-    }
+    const [usuarios, total] = await Promise.all([
+      User.find(filter)
+        .skip(skip)
+        .limit(parseInt(limit))
+        .select("-password"),
+      User.countDocuments(filter),
+    ]);
 
-    res.status(200).json(usuarios);
+    res.status(200).json({
+      results: usuarios,
+      total,
+      page: parseInt(page),
+      hasMore: skip + usuarios.length < total,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
+
