@@ -17,7 +17,6 @@ const tareaSchema = new mongoose.Schema({
     {
       _id: { type: mongoose.Schema.Types.ObjectId, auto: true }, 
       alumno_id: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario" },
-      nombre_usuario: { type: String }, 
       archivo_entregado: String,
       tipo_archivo: { type: String },
       fecha_entrega: Date,
@@ -26,9 +25,12 @@ const tareaSchema = new mongoose.Schema({
         enum: ['Pendiente', 'Entregado', 'Revisado'], 
         default: 'Pendiente' 
       },
-      calificacion: { type: Number, min: 0, max: 100 }
+      calificacion: { type: Number, min: 0, max: 100 },
+      fecha_revision: { type: Date }
     }
   ]
+}, {
+  versionKey: false
 });
 
 module.exports = mongoose.model("Tarea", tareaSchema);
