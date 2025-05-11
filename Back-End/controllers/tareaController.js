@@ -329,6 +329,7 @@ exports.obtenerTarea = async (req, res) => {
 
           if (entrega) {
             const resultado = {
+              id: _id,
               nombre_usuario: nombre,
               foto_perfil: foto_perfil || "",
               numero_lista: numero_lista || null,
@@ -350,6 +351,7 @@ exports.obtenerTarea = async (req, res) => {
 
           // Si no hay entrega registrada
           return {
+            id: _id,
             nombre_usuario: nombre,
             foto_perfil: foto_perfil || "",
             numero_lista: numero_lista || null,
