@@ -107,14 +107,14 @@ exports.actualizarTarea = async (req, res) => {
     if (estatus && !estatusValido.includes(estatus)) {
       return res.status(400).json({ error: "Estatus no válido" });
     }
-    
+
     // Actualizar los campos de la tarea (solo los proporcionados en el cuerpo de la solicitud)
     tarea.titulo = titulo || tarea.titulo;
     tarea.descripcion = descripcion || tarea.descripcion;
     tarea.fecha_vencimiento = fecha_vencimiento || tarea.fecha_vencimiento;
     tarea.puntos_totales = puntos_totales || tarea.puntos_totales;
     tarea.estatus = estatus || tarea.estatus;
-    tarea.archivo = archivo ||  tarea.archivo;
+    tarea.archivo = archivo || tarea.archivo;
     tarea.tipo_archivo = tipo_archivo || tarea.tipo_archivo;
 
     // Guardar los cambios en la base de datos
@@ -164,14 +164,14 @@ exports.eliminarTarea = async (req, res) => {
 
 exports.obtenerTareas = async (req, res) => {
   try {
-    const { 
-      pagina = 1, 
-      status, 
-      fecha_inicio, 
-      fecha_fin, 
-      group_id, 
-      orden = 'asc', 
-      titulo
+    const {
+      pagina = 1,
+      status,
+      fecha_inicio,
+      fecha_fin,
+      group_id,
+      orden = "asc",
+      titulo,
     } = req.query;
 
     const page = parseInt(pagina);
@@ -181,12 +181,14 @@ exports.obtenerTareas = async (req, res) => {
 
     let gruposRelevantes = [];
 
-    if (userRole === 'maestro') {
-      const grupos = await Grupo.find({ maestro_id: userId }).select('_id');
-      gruposRelevantes = grupos.map(g => g._id.toString());
-    } else if (userRole === 'alumno') {
-      const grupos = await Grupo.find({ "alumnos.alumno_id": userId }).select('_id');
-      gruposRelevantes = grupos.map(g => g._id.toString());
+    if (userRole === "maestro") {
+      const grupos = await Grupo.find({ maestro_id: userId }).select("_id");
+      gruposRelevantes = grupos.map((g) => g._id.toString());
+    } else if (userRole === "alumno") {
+      const grupos = await Grupo.find({ "alumnos.alumno_id": userId }).select(
+        "_id"
+      );
+      gruposRelevantes = grupos.map((g) => g._id.toString());
     }
 
     // Filtrar por grupos relevantes
@@ -208,27 +210,32 @@ exports.obtenerTareas = async (req, res) => {
     }
 
     if (titulo) {
-      filters.titulo = { $regex: `^${titulo}$`, $options: 'i' };
+      filters.titulo = { $regex: `^${titulo}$`, $options: "i" };
     }
-    
 
     const pageSize = 10;
     const skip = (page - 1) * pageSize;
-    const sortOrder = orden === 'desc' ? -1 : 1;
+    const sortOrder = orden === "desc" ? -1 : 1;
 
     const tasksRaw = await Tarea.find(filters)
-      .populate('grupo_id', 'nombre')
+      .populate("grupo_id", "nombre")
       .sort({ fecha_vencimiento: sortOrder })
       .skip(skip)
       .limit(pageSize);
 
-    const tasks = tasksRaw.map(task => {
+    const tasks = tasksRaw.map((task) => {
       const taskObj = task.toObject();
-      taskObj.grupo = taskObj.grupo_id ? {
-        _id: taskObj.grupo_id._id,
-        nombre: taskObj.grupo_id.nombre
-      } : null;
+
+      delete taskObj.__v;
+
+      taskObj.grupo = taskObj.grupo_id
+        ? {
+            _id: taskObj.grupo_id._id,
+            nombre: taskObj.grupo_id.nombre,
+          }
+        : null;
       delete taskObj.grupo_id;
+
       return taskObj;
     });
 
@@ -249,29 +256,153 @@ exports.obtenerTareas = async (req, res) => {
 
 exports.obtenerTarea = async (req, res) => {
   try {
-    const { id } = req.params; 
+    const { id } = req.params;
+    const { rol, id: usuarioId } = req.user; 
 
-    // Buscar la tarea por su ID
+    // Buscar la tarea con información de grupo y entregas
     const tareaRaw = await Tarea.findById(id)
-      .populate("grupo_id", "nombre") 
-      .populate("entregas.alumno_id", "nombre email");
+      .populate("grupo_id", "nombre alumnos")
+      .populate("entregas.alumno_id", "nombre email foto_perfil");
 
-    // Si no se encuentra la tarea, retornar un error
     if (!tareaRaw) {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
-    // Transformar: cambiar grupo_id a grupo
+    // Convertir la tarea a objeto plano y eliminar __v
     const tarea = tareaRaw.toObject();
-    tarea.grupo = tarea.grupo_id ? {
-      _id: tarea.grupo_id._id,
-      nombre: tarea.grupo_id.nombre
-    } : null;
-    delete tarea.grupo_id; 
+    delete tarea.__v;
 
-    // Devolver la tarea con las entregas y grupo organizado
+    // Transformar grupo_id → grupo
+    tarea.grupo = tarea.grupo_id
+      ? {
+          _id: tarea.grupo_id._id,
+          nombre: tarea.grupo_id.nombre,
+        }
+      : null;
+    delete tarea.grupo_id;
+
+    // Obtener el grupo completo y los alumnos asociados
+    const grupo = await Grupo.findById(tarea.grupo._id).lean();
+
+    if (!grupo) {
+      return res.status(404).json({ message: "Grupo no encontrado" });
+    }
+
+    // Obtener los alumnos usando una consulta explícita en la colección "User"
+    const alumnos = await Usuario.find({
+      _id: { $in: grupo.alumnos.map((a) => a.alumno_id) },
+    });
+
+    // Mapear los alumnos con el número de lista
+    const alumnosConNumeroLista = alumnos.map((alumno) => {
+      const numeroLista = grupo.alumnos.find(
+        (a) => a.alumno_id.toString() === alumno._id.toString()
+      ).numero_lista;
+
+      return {
+        _id: alumno._id,
+        nombre: alumno.nombre,
+        email: alumno.email,
+        foto_perfil: alumno.foto_perfil,
+        numero_lista: numeroLista,
+      };
+    });
+
+    if (rol === "maestro") {
+      // Crear un mapa de entregas de los alumnos usando el _id correcto
+      const entregasMap = new Map();
+      for (const entrega of tarea.entregas) {
+        if (entrega.alumno_id && entrega.alumno_id._id) {
+          // Si el alumno fue populado (es un objeto)
+          entregasMap.set(entrega.alumno_id._id.toString(), entrega);
+        } else if (entrega.alumno_id) {
+          // Si solo viene como ObjectId
+          entregasMap.set(entrega.alumno_id.toString(), entrega);
+        }
+      }
+
+      // Mapear las entregas con los alumnos ordenados por número de lista
+      tarea.entregas = alumnosConNumeroLista
+        .sort((a, b) => a.numero_lista - b.numero_lista)
+        .map(({ _id, nombre, foto_perfil, numero_lista }) => {
+          const entrega = entregasMap.get(_id.toString());
+
+          if (entrega) {
+            const resultado = {
+              nombre_usuario: nombre,
+              foto_perfil: foto_perfil || "",
+              numero_lista: numero_lista || null,
+              archivo_entregado: entrega.archivo_entregado || "",
+              tipo_archivo: entrega.tipo_archivo || "",
+              fecha_entrega: entrega.fecha_entrega || "",
+              estatus: entrega.estatus,
+            };
+
+            if (entrega.estatus === "Revisado") {
+              resultado.fecha_revision = entrega.fecha_entrega;
+              if (entrega.calificacion !== undefined) {
+                resultado.calificacion = entrega.calificacion;
+              }
+            }
+
+            return resultado;
+          }
+
+          // Si no hay entrega registrada
+          return {
+            nombre_usuario: nombre,
+            foto_perfil: foto_perfil || "",
+            numero_lista: numero_lista || null,
+            archivo_entregado: "",
+            tipo_archivo: "",
+            fecha_entrega: "",
+            estatus: "No entregado",
+          };
+        });
+    } else if (rol === "alumno") {
+      // Encontrar la entrega del alumno
+      const entrega = tarea.entregas.find(
+        (e) =>
+          (e.alumno_id && e.alumno_id._id
+            ? e.alumno_id._id.toString()
+            : e.alumno_id?.toString()) === usuarioId
+      );
+
+      tarea.entrega = entrega
+        ? {
+            nombre_usuario: entrega.alumno_id?.nombre || "",
+            archivo_entregado: entrega.archivo_entregado || "",
+            tipo_archivo: entrega.tipo_archivo || "",
+            fecha_entrega: entrega.fecha_entrega || "",
+            estatus: entrega.estatus,
+            numero_lista:
+              alumnosConNumeroLista.find((a) => a._id.toString() === usuarioId)
+                ?.numero_lista || null,
+            ...(entrega.estatus === "Revisado"
+              ? {
+                  fecha_revision: entrega.fecha_entrega,
+                  ...(entrega.calificacion !== undefined
+                    ? { calificacion: entrega.calificacion }
+                    : {}),
+                }
+              : {}),
+          }
+        : {
+            nombre_usuario: "",
+            archivo_entregado: "",
+            tipo_archivo: "",
+            fecha_entrega: "",
+            estatus: "No entregado",
+            numero_lista: null,
+          };
+
+      // Eliminar el campo 'entregas' para el rol de alumno
+      delete tarea.entregas;
+    }
+
     res.status(200).json(tarea);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
@@ -307,12 +438,14 @@ exports.calificarEntrega = async (req, res) => {
     );
 
     if (!entrega) {
-      return res.status(404).json({ message: "Entrega no encontrada para el alumno." });
+      return res
+        .status(404)
+        .json({ message: "Entrega no encontrada para el alumno." });
     }
 
-    // Añadir o actualizar la calificación directamente en la entrega
     entrega.calificacion = calificacion;
     entrega.estatus = "Revisado";
+    entrega.fecha_revision = new Date();
 
     // Guardar cambios
     await tarea.save();
@@ -322,7 +455,8 @@ exports.calificarEntrega = async (req, res) => {
       entrega: {
         alumno_id,
         calificacion,
-        estatus: entrega.estatus
+        estatus: entrega.estatus,
+        fecha_revision: entrega.fecha_revision,
       },
     });
   } catch (error) {
@@ -340,11 +474,15 @@ exports.obtenerEntregasPorTarea = async (req, res) => {
       return res.status(400).json({ message: "El ID del grupo es requerido." });
     }
 
-    const tarea = await Tarea.findOne({ _id: id, grupo_id })
-      .populate("entregas.alumno_id", "nombre correo");
+    const tarea = await Tarea.findOne({ _id: id, grupo_id }).populate(
+      "entregas.alumno_id",
+      "nombre correo"
+    );
 
     if (!tarea) {
-      return res.status(404).json({ message: "Tarea no encontrada o no pertenece al grupo especificado." });
+      return res.status(404).json({
+        message: "Tarea no encontrada o no pertenece al grupo especificado.",
+      });
     }
 
     res.status(200).json({
@@ -360,10 +498,13 @@ exports.obtenerEntregasPorTarea = async (req, res) => {
 exports.subirEntrega = async (req, res) => {
   try {
     const { id } = req.params;
-    const { alumno_id, archivo_entregado, tipo_archivo, nombre_usuario } = req.body;
+    const { alumno_id, archivo_entregado, tipo_archivo } = req.body;
 
     if (!alumno_id || !archivo_entregado || !tipo_archivo) {
-      return res.status(400).json({ message: "Los campos alumno_id, archivo_entregado y tipo_archivo son requeridos." });
+      return res.status(400).json({
+        message:
+          "Los campos alumno_id, archivo_entregado y tipo_archivo son requeridos.",
+      });
     }
 
     const tarea = await Tarea.findById(id);
@@ -371,24 +512,20 @@ exports.subirEntrega = async (req, res) => {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
-    let nombre = nombre_usuario;
-
-    if (!nombre_usuario) {
-      const alumno = await Usuario.findById(alumno_id);
-      if (!alumno) {
-        return res.status(404).json({ message: "Alumno no encontrado." });
-      }
-      nombre = alumno.nombre;
+    const alumno = await Usuario.findOne({ _id: alumno_id, rol: "alumno" });
+    if (!alumno) {
+      return res
+        .status(404)
+        .json({ message: "Alumno no encontrado o no tiene el rol adecuado." });
     }
 
     const nuevaEntrega = {
       _id: new mongoose.Types.ObjectId(),
       alumno_id: new mongoose.Types.ObjectId(alumno_id),
-      nombre_usuario: nombre,
       archivo_entregado,
       tipo_archivo,
       fecha_entrega: new Date(),
-      estatus: "Entregado"
+      estatus: "Entregado",
     };
 
     tarea.entregas.push(nuevaEntrega);
@@ -452,7 +589,9 @@ exports.actualizarEntrega = async (req, res) => {
 
     await tarea.save();
 
-    res.status(200).json({ message: "Entrega actualizada exitosamente.", entrega });
+    res
+      .status(200)
+      .json({ message: "Entrega actualizada exitosamente.", entrega });
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ message: "Error interno del servidor." });
