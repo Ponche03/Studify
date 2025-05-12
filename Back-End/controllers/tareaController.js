@@ -543,23 +543,33 @@ exports.subirEntrega = async (req, res) => {
   }
 };
 
+
 exports.eliminarEntrega = async (req, res) => {
   try {
-    const { tareaId, entregaId } = req.params;
+    const { tareaId } = req.params;
+    const { id: usuarioId, rol } = req.user;
 
+    if (rol !== 'alumno') {
+      return res.status(403).json({ message: "Acceso denegado." });
+    }
+
+    // Buscar la tarea
     const tarea = await Tarea.findById(tareaId);
     if (!tarea) {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
+    // Buscar la entrega del alumno en la lista de entregas
     const entregaIndex = tarea.entregas.findIndex(
-      (entrega) => entrega._id.toString() === entregaId
+      (entrega) =>
+        entrega.alumno_id && entrega.alumno_id.toString() === usuarioId
     );
 
     if (entregaIndex === -1) {
-      return res.status(404).json({ message: "Entrega no encontrada." });
+      return res.status(400).json({ message: "No se encontró una entrega del alumno para esta tarea." });
     }
 
+    // Eliminar la entrega
     tarea.entregas.splice(entregaIndex, 1);
     await tarea.save();
 
@@ -569,6 +579,7 @@ exports.eliminarEntrega = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor." });
   }
 };
+
 
 exports.actualizarEntrega = async (req, res) => {
   try {
