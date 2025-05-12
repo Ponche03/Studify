@@ -32,10 +32,18 @@ const obtenerAsistencia = async (req, res) => {
   try {
     const { grupo_id, fecha } = req.query;
 
-    // Buscar asistencia por grupo_id y fecha
-    const asistencia = await Asistencia.findOne({ 
-      grupo_id, 
-      fecha: new Date(fecha)
+    const targetDate = new Date(fecha);
+    if (isNaN(targetDate)) {
+      return res.status(400).json({ message: "Fecha inválida" });
+    }
+
+    const startOfDay = new Date(targetDate.setUTCHours(0, 0, 0, 0));
+    const endOfDay = new Date(targetDate.setUTCHours(23, 59, 59, 999));
+
+    // Buscar asistencia
+    const asistencia = await Asistencia.findOne({
+      grupo_id,
+      fecha: { $gte: startOfDay, $lte: endOfDay },
     });
 
     if (!asistencia) {
@@ -55,6 +63,7 @@ const obtenerAsistencia = async (req, res) => {
     });
   }
 };
+
 module.exports = {
   guardarAsistencia,
   obtenerAsistencia,
