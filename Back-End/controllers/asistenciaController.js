@@ -30,24 +30,30 @@ const guardarAsistencia = async (req, res) => {
 // GET /attendance/?grupo_id=group_id&fecha=2025-02-10 - Obtener asistencia
 const obtenerAsistencia = async (req, res) => {
   try {
-    const { grupo_id, fecha } = req.query;
+    const { grupo_id, fechaLocal, zonaHoraria } = req.query;
 
-    const targetDate = new Date(fecha);
-    if (isNaN(targetDate)) {
-      return res.status(400).json({ message: "Fecha inválida" });
+    if (!fechaLocal || isNaN(parseInt(zonaHoraria))) {
+      return res.status(400).json({ message: "Parámetros inválidos" });
     }
 
-    const startOfDay = new Date(targetDate.setUTCHours(0, 0, 0, 0));
-    const endOfDay = new Date(targetDate.setUTCHours(23, 59, 59, 999));
+    const offsetMin = parseInt(zonaHoraria);
+    const offsetMs = offsetMin * 60 * 1000;
 
-    // Buscar asistencia
+    const localStart = new Date(`${fechaLocal}T00:00:00`);
+    const localEnd = new Date(`${fechaLocal}T23:59:59.999`);
+
+    // Conversion a UTC 
+    const startUTC = new Date(localStart.getTime() - offsetMs);
+    const endUTC = new Date(localEnd.getTime() - offsetMs);
+
     const asistencia = await Asistencia.findOne({
       grupo_id,
-      fecha: { $gte: startOfDay, $lte: endOfDay },
+      fecha: { $gte: startUTC, $lte: endUTC },
     });
 
     if (!asistencia) {
       return res.status(404).json({
+        notFound: true,
         message: "No se encontró asistencia para el grupo y fecha especificados",
       });
     }
@@ -63,6 +69,7 @@ const obtenerAsistencia = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   guardarAsistencia,
