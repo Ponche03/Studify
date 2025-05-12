@@ -32,6 +32,6 @@ router.get("/tasks/:id/uploads", authMiddleware, taskController.obtenerEntregasP
 router.put("/tasks/:tareaId/uploads/:entregaId", authMiddleware, taskController.actualizarEntrega);
 
 // Ruta para eliminar una entrega específica de una tarea
-router.delete("/tasks/:tareaId/uploads/:entregaId", authMiddleware, taskController.eliminarEntrega);
+router.delete("/tasks/:tareaId/uploads/", authMiddleware, taskController.eliminarEntrega);
 
 module.exports = router;
