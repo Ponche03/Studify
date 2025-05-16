@@ -40,6 +40,6 @@ app.use("/api", require("./routes/postRoutes"));
 app.use("/api", require("./routes/asistenciaRoutes"));
 app.use("/api", require("./routes/materialRoutes"));
 app.use("/api", require("./routes/reporteRoutes"));
-
+app.use("/api", require("./routes/chatbotRoutes"));
 // Start server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
