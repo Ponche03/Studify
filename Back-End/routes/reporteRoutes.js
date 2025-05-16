@@ -10,6 +10,6 @@ router.get("/reports/asistencia", authMiddleware, obtenerReporteAsistencia);
 router.get("/reports/tareas", authMiddleware, obtenerReporteTareas);
 
 // Ruta para reportes de tareas y evaluaciones
-router.get("/reports/desempeño", authMiddleware, obtenerReporteDesempeno);
+router.get("/reports/desempeno", authMiddleware, obtenerReporteDesempeno);
 
 module.exports = router;
