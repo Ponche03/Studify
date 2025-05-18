@@ -27,35 +27,33 @@ const guardarAsistencia = async (req, res) => {
   }
 };
 
-// GET /attendance/?grupo_id=group_id&fecha=2025-02-10 - Obtener asistencia
 const obtenerAsistencia = async (req, res) => {
   try {
-    const { grupo_id, fechaLocal, zonaHoraria } = req.query;
+    const { grupo_id, fecha, timezone = "UTC" } = req.query;
 
-    if (!fechaLocal || isNaN(parseInt(zonaHoraria))) {
-      return res.status(400).json({ message: "Parámetros inválidos" });
+    if (!fecha || !timezone) {
+      return res.status(400).json({ message: "Parámetros 'fecha' y 'timezone' son obligatorios" });
     }
 
-    const offsetMin = parseInt(zonaHoraria);
-    const offsetMs = offsetMin * 60 * 1000;
+    // Crea una fecha local en la zona horaria especificada
+    const localToUTC = (dateStr, timeStr, tz) => {
+      const date = new Date(`${dateStr}T${timeStr}:00`);
+      const localeString = date.toLocaleString("en-US", { timeZone: tz });
+      const adjusted = new Date(localeString);
+      const diffMs = date.getTime() - adjusted.getTime();
+      return new Date(date.getTime() + diffMs);
+    };
 
-    const localStart = new Date(`${fechaLocal}T00:00:00`);
-    const localEnd = new Date(`${fechaLocal}T23:59:59.999`);
-
-    // Conversion a UTC 
-    const startUTC = new Date(localStart.getTime() + offsetMs); 
-    const endUTC = new Date(localEnd.getTime() + offsetMs);
-
-    console.log({
-      grupo_id, tipo: typeof grupo_id,
-      startUTC: startUTC.toISOString(),
-      endUTC: endUTC.toISOString()
-    });
+    const fechaInicioUTC = localToUTC(fecha, "00:00", timezone);
+    const fechaFinUTC = localToUTC(fecha, "23:59", timezone);
 
     const asistencia = await Asistencia.findOne({
       grupo_id,
-      fecha: { $gte: startUTC, $lte: endUTC },
-    });
+      fecha: {
+        $gte: fechaInicioUTC,
+        $lte: fechaFinUTC,
+      },
+    }).lean();
 
     if (!asistencia) {
       return res.status(404).json({
@@ -63,6 +61,13 @@ const obtenerAsistencia = async (req, res) => {
         message: "No se encontró asistencia para el grupo y fecha especificados",
       });
     }
+
+    // Convertir la fecha de la asistencia al formato local "yyyy-mm-dd"
+    const fechaLocal = new Date(asistencia.fecha).toLocaleDateString("en-CA", {
+      timeZone: timezone,
+    });
+
+    asistencia.fecha_local = fechaLocal; // yyyy-mm-dd
 
     res.status(200).json({
       message: "Asistencia obtenida exitosamente",
@@ -75,6 +80,8 @@ const obtenerAsistencia = async (req, res) => {
     });
   }
 };
+
+
 
 
 module.exports = {
