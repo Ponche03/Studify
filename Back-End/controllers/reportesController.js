@@ -17,11 +17,15 @@ const obtenerReporteDesempeno = async (req, res) => {
     const fechaInicio = new Date(fecha_inicio);
     const fechaFin = new Date(fecha_fin);
 
-    // Obtener grupos del maestro (con o sin filtro por grupo_id)
-    const filtroGrupos = { maestro_id };
+    // Filtro grupos
+    const filtroGrupos = {
+      maestro_id,
+      archivado: false // ← Filtra solo los grupos activos (no archivados)
+    };
     if (grupo_id) {
       filtroGrupos._id = grupo_id;
     }
+
 
     const grupos = await Grupo.find(filtroGrupos).lean();
     if (grupos.length === 0) {
@@ -33,13 +37,12 @@ const obtenerReporteDesempeno = async (req, res) => {
     for (const grupo of grupos) {
       const alumnosGrupo = grupo.alumnos.map(a => a.alumno_id.toString());
 
-      // Tareas del grupo
+      // Obtener tareas dentro del rango
       const tareasGrupo = await Tarea.find({
         grupo_id: grupo._id,
         fecha_vencimiento: { $gte: fechaInicio, $lte: fechaFin }
       }).lean();
 
-      let totalTareas = tareasGrupo.length;
       let sumaCalificaciones = 0;
       let cantidadCalificaciones = 0;
 
@@ -76,19 +79,16 @@ const obtenerReporteDesempeno = async (req, res) => {
         ? (totalAsistencias / (totalSesiones * alumnosGrupo.length)) * 100
         : 0;
 
-      // Desviación estándar respecto a otros grupos del maestro
-      const otrosGrupos = grupos.filter(g => g._id.toString() !== grupo._id.toString());
+      // Desviación estándar respecto a otros grupos (incluyendo todos)
+      const promediosGrupos = [];
 
-      const promediosOtrosGrupos = [];
-
-      for (const otroGrupo of otrosGrupos) {
+      for (const g of grupos) {
         const tareas = await Tarea.find({
-          grupo_id: otroGrupo._id,
+          grupo_id: g._id,
           fecha_vencimiento: { $gte: fechaInicio, $lte: fechaFin }
         }).lean();
 
         let suma = 0, cantidad = 0;
-
         tareas.forEach(t => {
           t.entregas?.forEach(e => {
             if (typeof e.calificacion === 'number') {
@@ -99,36 +99,57 @@ const obtenerReporteDesempeno = async (req, res) => {
         });
 
         if (cantidad > 0) {
-          promediosOtrosGrupos.push(suma / cantidad);
+          promediosGrupos.push({ grupo_id: g._id.toString(), promedio: suma / cantidad, nombre: g.nombre });
         }
       }
 
-      const desviacionEstandar = (() => {
-        if (promediosOtrosGrupos.length === 0) return 0;
-        const media = promediosOtrosGrupos.reduce((a, b) => a + b, 0) / promediosOtrosGrupos.length;
-        const varianza = promediosOtrosGrupos.reduce((acc, val) => acc + Math.pow(val - media, 2), 0) / promediosOtrosGrupos.length;
+      const calcularDesviacionEstandar = (valores) => {
+        if (valores.length === 0) return 0;
+        const media = valores.reduce((a, b) => a + b, 0) / valores.length;
+        const varianza = valores.reduce((acc, val) => acc + Math.pow(val - media, 2), 0) / valores.length;
         return Math.sqrt(varianza);
-      })();
+      };
+
+      const promediosSolo = promediosGrupos.map(pg => pg.promedio);
+      const desviacionEstandar = calcularDesviacionEstandar(promediosSolo);
 
       reportes.push({
-        grupo_id: grupo._id,
+        grupo_id: grupo._id.toString(),
         grupo: grupo.nombre,
         fecha_inicio: fechaInicio.toISOString().split('T')[0],
         fecha_fin: fechaFin.toISOString().split('T')[0],
         promedio_general: promedioCalificaciones.toFixed(2),
         promedio_asistencia: promedioAsistencia.toFixed(2),
-        promedio_tareas: totalTareas,
+        promedio_tareas: tareasGrupo.length,
         evaluaciones_realizadas: cantidadCalificaciones,
         desviacion_estandar_vs_otros_grupos: desviacionEstandar.toFixed(2)
       });
     }
 
-    res.status(200).json(reportes);
+    if (grupo_id) {
+      // Solo devolver el reporte para el grupo filtrado (en array)
+      const reporteGrupo = reportes.filter(r => r.grupo_id === grupo_id);
+      return res.status(200).json(reporteGrupo);
+    } else {
+      // Devolver el reporte general con desviacion_estandar_promedio y grupos
+      const desviacion_estandar_promedio = reportes.map(r => ({
+        grupo_id: r.grupo_id,
+        grupo: r.grupo,
+        desviacion_estandar: r.desviacion_estandar_vs_otros_grupos
+      }));
+
+      return res.status(200).json({
+        desviacion_estandar_promedio,
+        grupos: reportes
+      });
+    }
+
   } catch (error) {
-    console.error("Error en obtenerReporteDesempenoGeneral:", error);
-    res.status(500).json({ message: "Error al generar el reporte de desempeño general", error: error.message });
+    console.error("Error en obtenerReporteDesempeno:", error);
+    res.status(500).json({ message: "Error al generar el reporte de desempeño", error: error.message });
   }
 };
+
 
 
 // Terminado

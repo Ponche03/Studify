@@ -43,8 +43,14 @@ const obtenerAsistencia = async (req, res) => {
     const localEnd = new Date(`${fechaLocal}T23:59:59.999`);
 
     // Conversion a UTC 
-    const startUTC = new Date(localStart.getTime() - offsetMs);
-    const endUTC = new Date(localEnd.getTime() - offsetMs);
+    const startUTC = new Date(localStart.getTime() + offsetMs); 
+    const endUTC = new Date(localEnd.getTime() + offsetMs);
+
+    console.log({
+      grupo_id, tipo: typeof grupo_id,
+      startUTC: startUTC.toISOString(),
+      endUTC: endUTC.toISOString()
+    });
 
     const asistencia = await Asistencia.findOne({
       grupo_id,
