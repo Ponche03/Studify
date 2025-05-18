@@ -15,6 +15,8 @@ router.delete("/tasks/:id", authMiddleware, taskController.eliminarTarea);
 
 // Ruta para obtener tareas asociadas a un usuario con filtros
 router.get("/tasks", authMiddleware, taskController.obtenerTareas);
+router.get("/tasks/calendar", authMiddleware, taskController.obtenerTareasCalendario);
+
 
 // Ruta para obtener información detallada de una tarea
 router.get("/tasks/:id", authMiddleware, taskController.obtenerTarea);
