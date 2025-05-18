@@ -610,3 +610,81 @@ exports.actualizarEntrega = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor." });
   }
 };
+exports.obtenerTareasCalendario = async (req, res) => {
+  try {
+    const { mes, year, timezone = "UTC" } = req.query;
+    const userId = req.user.id;
+    const userRole = req.user.rol;
+
+    if (!mes || !year) {
+      return res.status(400).json({ error: "Parámetros 'mes' y 'anio' son obligatorios" });
+    }
+
+    const mesInt = parseInt(mes); // enero = 1
+    const yearInt = parseInt(year);
+
+    // Obtener fecha de inicio y fin del mes en zona horaria enviada
+    const getDateInUTC = (dateStr, tz) => {
+      const date = new Date(dateStr);
+      const utcDate = new Date(date.toLocaleString("en-US", { timeZone: tz }));
+      return new Date(
+        Date.UTC(
+          utcDate.getFullYear(),
+          utcDate.getMonth(),
+          utcDate.getDate(),
+          utcDate.getHours(),
+          utcDate.getMinutes(),
+          utcDate.getSeconds()
+        )
+      );
+    };
+
+    const localStart = new Date(`${yearInt}-${mesInt.toString().padStart(2, "0")}-01T00:00:00`);
+    const localEnd = new Date(yearInt, mesInt, 0, 23, 59, 59); // Último día del mes
+
+    const fechaInicio = getDateInUTC(localStart, timezone);
+    const fechaFin = getDateInUTC(localEnd, timezone);
+
+    let grupos = [];
+
+    if (userRole === "maestro") {
+      grupos = await Grupo.find({ maestro_id: userId }).select("_id");
+    } else if (userRole === "alumno") {
+      grupos = await Grupo.find({ "alumnos.alumno_id": userId }).select("_id");
+    }
+
+    const grupoIds = grupos.map((g) => g._id);
+
+    const tareas = await Tarea.find({
+      grupo_id: { $in: grupoIds },
+      fecha_vencimiento: {
+        $gte: fechaInicio,
+        $lte: fechaFin,
+      },
+    })
+      .select("titulo fecha_vencimiento grupo_id")
+      .lean();
+
+    const tareasParaCalendario = tareas.map((tarea) => {
+      const localDate = new Date(tarea.fecha_vencimiento).toLocaleString("en-CA", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+
+      return {
+        id: tarea._id.toString(),
+        title: tarea.titulo,
+        date: localDate.split(",")[0], // yyyy-mm-dd
+        groupId: tarea.grupo_id.toString(),
+        taskId: tarea._id.toString(),
+      };
+    });
+
+    res.status(200).json(tareasParaCalendario);
+  } catch (error) {
+    console.error("Error al obtener tareas del calendario:", error);
+    res.status(500).json({ error: "Error al obtener las tareas del calendario" });
+  }
+};
