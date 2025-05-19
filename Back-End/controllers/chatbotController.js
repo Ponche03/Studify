@@ -1,5 +1,5 @@
 const OpenAI = require("openai");
-const Conversacion = require("../models/ConversacionModel");
+const Conversacion = require("../models/conversacionModel");
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
