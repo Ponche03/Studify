@@ -168,6 +168,7 @@ exports.obtenerUsuariosPorBusqueda = async (req, res) => {
 
     // Búsqueda parcial insensible a mayúsculas/minúsculas en 'nombre' o 'email'
     const filter = {
+       rol: "alumno",
       $or: [
         { nombre: { $regex: q, $options: "i" } },
         { email: { $regex: q, $options: "i" } }
