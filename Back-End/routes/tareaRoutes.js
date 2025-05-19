@@ -1,39 +1,42 @@
 const taskController = require("../controllers/tareaController");
 const authMiddleware = require("../middlewares/authMiddleware");
-
+const teacherGroupCheckMiddleware = require("../middlewares/teacherGroupCheckMiddleware");
+const validRoleMiddleware = require("../middlewares/validRoleMiddleware");
 const express = require("express");
 const router = express.Router();
 
+router.use(authMiddleware);
 // Ruta para crear una tarea
-router.post("/tasks", authMiddleware, taskController.crearTarea);
+router.post("/tasks", teacherGroupCheckMiddleware, taskController.crearTarea);
 
 // Ruta para actualizar una tarea
-router.patch("/tasks/:id", authMiddleware, taskController.actualizarTarea);
+router.patch("/tasks/:id", teacherGroupCheckMiddleware, taskController.actualizarTarea);
 
 // Ruta para eliminar una tarea
-router.delete("/tasks/:id", authMiddleware, taskController.eliminarTarea);
+router.delete("/tasks/:group_id/delete/:id", teacherGroupCheckMiddleware, taskController.eliminarTarea);
 
 // Ruta para obtener tareas asociadas a un usuario con filtros
-router.get("/tasks", authMiddleware, taskController.obtenerTareas);
-router.get("/tasks/calendar", authMiddleware, taskController.obtenerTareasCalendario);
+router.get("/tasks", taskController.obtenerTareas);
+
+router.get("/tasks/calendar", taskController.obtenerTareasCalendario);
 
 
 // Ruta para obtener información detallada de una tarea
-router.get("/tasks/:id", authMiddleware, taskController.obtenerTarea);
+router.get("/tasks/:id", taskController.obtenerTarea);
 
 // Ruta para calificar una tarea
-router.post("/tasks/:id/gradeTask", authMiddleware, taskController.calificarEntrega);
+router.post("/tasks/:id/gradeTask", teacherGroupCheckMiddleware, taskController.calificarEntrega);
 
 // Ruta para subir una entrega a una tarea
-router.post("/tasks/:id/uploads", authMiddleware, taskController.subirEntrega);
+router.post("/tasks/:id/uploads", taskController.subirEntrega);
 
 // Ruta para obtener todas las entregas de una tarea por grupo
-router.get("/tasks/:id/uploads", authMiddleware, taskController.obtenerEntregasPorTarea);
+router.get("/tasks/:id/uploads", teacherGroupCheckMiddleware, taskController.obtenerEntregasPorTarea);
 
 // Ruta para actualizar una entrega específica de una tarea
-router.put("/tasks/:tareaId/uploads/:entregaId", authMiddleware, taskController.actualizarEntrega);
+router.put("/tasks/:tareaId/uploads/:entregaId", taskController.actualizarEntrega);
 
 // Ruta para eliminar una entrega específica de una tarea
-router.delete("/tasks/:tareaId/uploads/", authMiddleware, taskController.eliminarEntrega);
+router.delete("/tasks/:tareaId/uploads/", taskController.eliminarEntrega);
 
 module.exports = router;
