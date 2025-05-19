@@ -1,7 +1,6 @@
 const Grupo = require("../models/grupoModel");
 const Usuario = require("../models/usuarioModel");
 const Tarea = require("../models/tareaModel");
-const EntregaTarea = require("../models/tareaModel");
 const Asistencia = require("../models/asistenciaModel");
 
 const logger = require('../utils/logger');
