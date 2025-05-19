@@ -297,7 +297,7 @@ const obtenerReporteTareas = async (req, res) => {
 
       return {
         nombre_alumno: nombre,
-        porcentaje_entregas: porcentajeEntregadas.toFixed(2) + "%",
+        porcentaje_entregadas_a_tiempo: porcentajeEntregadas.toFixed(2) + "%", // porcentaje_de_entregas
         promedio_calificacion:
           promedioCalificacion !== null
             ? promedioCalificacion.toFixed(2)
