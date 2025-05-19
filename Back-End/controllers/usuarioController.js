@@ -45,6 +45,12 @@ exports.registrarUsuario = async (req, res) => {
   try {
     const { nombre, email, rol, password, foto_perfil } = req.body;
 
+    if (!nombre || !email || !rol || !password) {
+      return res.status(400).json({
+        error: "Los campos nombre, email, rol y password son requeridos y no pueden ser nulos.",
+      });
+    }
+
     const usuarioExistente = await User.findOne({ email });
     if (usuarioExistente) {
       return res.status(400).json({ error: "Ya existe el nombre de usuario." });
@@ -98,6 +104,13 @@ exports.editarUsuario = async (req, res) => {
     const { id } = req.params;
     const { nombre, email, rol, foto_perfil } = req.body;
 
+    // Solo puede editarse a sí mismo
+    if (req.user.id !== id) {
+      return res.status(403).json({
+        error: "No tienes permiso para editar este perfil.",
+      });
+    }
+
     const usuario = await User.findById(id);
     if (!usuario) {
       return res.status(404).json({ error: "Usuario no encontrado." });
@@ -105,14 +118,24 @@ exports.editarUsuario = async (req, res) => {
 
     usuario.nombre = nombre || usuario.nombre;
     usuario.email = email || usuario.email;
-    usuario.rol = rol || usuario.rol;
+
+    // No permitir que se modifique el rol desde aquí
+    if (rol && rol !== usuario.rol) {
+      return res.status(403).json({
+        error: "No está permitido cambiar el rol del usuario.",
+      });
+    }
+
     if (foto_perfil) {
       usuario.foto_perfil = foto_perfil;
     }
 
     await usuario.save();
-    res.status(200).json({ message: "Usuario actualizado correctamente.", usuario });
+    res
+      .status(200)
+      .json({ message: "Usuario actualizado correctamente.", usuario });
   } catch (error) {
+    console.error("Error al editar usuario:", error);
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
