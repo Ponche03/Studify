@@ -55,9 +55,13 @@ exports.handleChat = async (req, res) => {
       });
     }
 
-    // Agregar mensaje del usuario
-    conversacion.messages.push({ role: "user", content: message });
-    conversacion.lastInteraction = now;
+// Limitar el mensaje a 200 caracteres
+const mensajeLimitado = message.slice(0, 200);
+
+// Agregar mensaje del usuario
+conversacion.messages.push({ role: "user", content: mensajeLimitado });
+conversacion.lastInteraction = now;
+
 
     // Limitar historial si lo deseas (últimos 15)
     const maxHistory = 15;
