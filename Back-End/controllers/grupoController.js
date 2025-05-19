@@ -4,28 +4,35 @@ const User = require("../models/usuarioModel");
 const Post = require("../models/postModel");
 
 exports.crearGrupo = async (req, res) => {
-  try {
+ 
     const { nombre, descripcion, maestro_id, foto } = req.body;
-
-    // Verificar si el maestro existe y su rol es "maestro"
-    const maestro = await User.findById(maestro_id);
-    if (!maestro || maestro.rol !== "maestro") {
-      return res
-        .status(400)
-        .json({ error: "El maestro no existe o no tiene el rol adecuado." });
+    if (!nombre || typeof nombre !== "string" || nombre.trim() === "") {
+      return res.status(400).json({ message: "El nombre es obligatorio y debe ser texto." });
     }
 
-    // Crear un nuevo grupo
-    const nuevoGrupo = new Grupo({
-      nombre,
-      descripcion,
-      maestro_id,
-      foto,
-      alumnos: [], // Inicialmente sin alumnos
-    });
+    if (descripcion !== undefined && typeof descripcion !== "string") {
+      return res.status(400).json({ message: "La descripción debe ser texto." });
+    }
 
-    // Guardar en la base de datos
-    await nuevoGrupo.save();
+    if (!maestro_id || !mongoose.Types.ObjectId.isValid(maestro_id)) {
+      return res.status(400).json({ message: "El maestro_id es obligatorio y debe ser un ID válido." });
+    }
+
+    if (foto !== undefined && typeof foto !== "string") {
+      return res.status(400).json({ message: "La foto debe ser un url en forma de texto." });
+    }
+     try {
+      // Crear un nuevo grupo
+      const nuevoGrupo = new Grupo({
+        nombre,
+        descripcion,
+        maestro_id,
+        foto,
+        alumnos: [], // Inicialmente sin alumnos
+      });
+
+      // Guardar en la base de datos
+      await nuevoGrupo.save();
 
     // Responder con el grupo creado
     res.status(200).json({
@@ -49,11 +56,16 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
     const { group_id } = req.params;
     const { alumno_id } = req.body;
 
+
+    if (!alumno_id || !mongoose.Types.ObjectId.isValid(alumno_id)) {
+      return res.status(400).json({ message: "El alumno_id es obligatorio y debe ser un ID válido." });
+    }
     // Verificar si el grupo existe
     const group = await Grupo.findById(group_id);
     if (!group) {
       return res.status(404).json({ error: "El grupo no existe." });
     }
+
 
     // Verificar si el alumno existe
     const student = await User.findById(alumno_id);
@@ -95,7 +107,8 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
 
 exports.archivarGrupo = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { group_id } = req.params; // Obtener el ID del grupo desde los parámetros de la URL
+    const id = group_id;
 
     const grupo = await Grupo.findByIdAndUpdate(
       id,
@@ -235,8 +248,8 @@ exports.editarGrupo = async (req, res) => {
 
 exports.obtenerGrupoConPosts = async (req, res) => {
   try {
-    const { id } = req.params; // Obtener el ID del grupo desde los parámetros de la URL
-
+    const { group_id } = req.params; // Obtener el ID del grupo desde los parámetros de la URL
+    const id = group_id;
     // Validar que el ID sea un ObjectId válido
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ error: "ID de grupo no válido" });
@@ -272,8 +285,8 @@ exports.obtenerGrupoConPosts = async (req, res) => {
 
 exports.obtenerAlumnosDeGrupo = async (req, res) => {
   try {
-    const { id } = req.params; // Obtener el ID del grupo desde los parámetros de la URL
-
+    const { group_id } = req.params; // Obtener el ID del grupo desde los parámetros de la URL
+    const id = group_id;
     // Buscar el grupo por su ID
     const grupo = await Grupo.findById(id);
 

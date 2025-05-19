@@ -90,6 +90,7 @@ exports.actualizarTarea = async (req, res) => {
       tipo_archivo,
       puntos_totales,
       estatus,
+      group_id
     } = req.body;
 
     const tarea = await Tarea.findById(id);
@@ -187,6 +188,7 @@ exports.obtenerTareas = async (req, res) => {
       group_id,
       orden = "asc",
       titulo,
+      limit = 10,
     } = req.query;
 
     const page = parseInt(pagina);
@@ -225,10 +227,11 @@ exports.obtenerTareas = async (req, res) => {
     }
 
     if (titulo) {
-      filters.titulo = { $regex: `^${titulo}$`, $options: "i" };
+      filters.titulo = { $regex: titulo, $options: "i" }; 
     }
 
-    const pageSize = 10;
+
+    const pageSize = limit;
     const skip = (page - 1) * pageSize;
     const sortOrder = orden === "desc" ? -1 : 1;
 
@@ -245,9 +248,9 @@ exports.obtenerTareas = async (req, res) => {
 
       taskObj.grupo = taskObj.grupo_id
         ? {
-            _id: taskObj.grupo_id._id,
-            nombre: taskObj.grupo_id.nombre,
-          }
+          _id: taskObj.grupo_id._id,
+          nombre: taskObj.grupo_id.nombre,
+        }
         : null;
       delete taskObj.grupo_id;
 
@@ -272,7 +275,7 @@ exports.obtenerTareas = async (req, res) => {
 exports.obtenerTarea = async (req, res) => {
   try {
     const { id } = req.params;
-    const { rol, id: usuarioId } = req.user; 
+    const { rol, id: usuarioId } = req.user;
 
     // Buscar la tarea con información de grupo y entregas
     const tareaRaw = await Tarea.findById(id)
@@ -290,9 +293,9 @@ exports.obtenerTarea = async (req, res) => {
     // Transformar grupo_id → grupo
     tarea.grupo = tarea.grupo_id
       ? {
-          _id: tarea.grupo_id._id,
-          nombre: tarea.grupo_id.nombre,
-        }
+        _id: tarea.grupo_id._id,
+        nombre: tarea.grupo_id.nombre,
+      }
       : null;
     delete tarea.grupo_id;
 
@@ -387,31 +390,31 @@ exports.obtenerTarea = async (req, res) => {
 
       tarea.entrega = entrega
         ? {
-            nombre_usuario: entrega.alumno_id?.nombre || "",
-            archivo_entregado: entrega.archivo_entregado || "",
-            tipo_archivo: entrega.tipo_archivo || "",
-            fecha_entrega: entrega.fecha_entrega || "",
-            estatus: entrega.estatus,
-            numero_lista:
-              alumnosConNumeroLista.find((a) => a._id.toString() === usuarioId)
-                ?.numero_lista || null,
-            ...(entrega.estatus === "Revisado"
-              ? {
-                  fecha_revision: entrega.fecha_entrega,
-                  ...(entrega.calificacion !== undefined
-                    ? { calificacion: entrega.calificacion }
-                    : {}),
-                }
-              : {}),
-          }
+          nombre_usuario: entrega.alumno_id?.nombre || "",
+          archivo_entregado: entrega.archivo_entregado || "",
+          tipo_archivo: entrega.tipo_archivo || "",
+          fecha_entrega: entrega.fecha_entrega || "",
+          estatus: entrega.estatus,
+          numero_lista:
+            alumnosConNumeroLista.find((a) => a._id.toString() === usuarioId)
+              ?.numero_lista || null,
+          ...(entrega.estatus === "Revisado"
+            ? {
+              fecha_revision: entrega.fecha_entrega,
+              ...(entrega.calificacion !== undefined
+                ? { calificacion: entrega.calificacion }
+                : {}),
+            }
+            : {}),
+        }
         : {
-            nombre_usuario: "",
-            archivo_entregado: "",
-            tipo_archivo: "",
-            fecha_entrega: "",
-            estatus: "No entregado",
-            numero_lista: null,
-          };
+          nombre_usuario: "",
+          archivo_entregado: "",
+          tipo_archivo: "",
+          fecha_entrega: "",
+          estatus: "No entregado",
+          numero_lista: null,
+        };
 
       // Eliminar el campo 'entregas' para el rol de alumno
       delete tarea.entregas;

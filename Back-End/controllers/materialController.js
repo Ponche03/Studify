@@ -34,7 +34,8 @@ const agregarMaterial = async (req, res) => {
 // DELETE /classmat/{id} - Eliminar material de clase
 const eliminarMaterial = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { material_id } = req.params; // Obtener el ID del grupo y del material desde los parámetros de la URL
+    const id = material_id;
 
     // Eliminar material por ID
     const materialEliminado = await MaterialClase.findByIdAndDelete(id);
