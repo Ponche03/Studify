@@ -1,30 +1,45 @@
 const User = require("../models/usuarioModel");
-
+const admin = require("../utils/firebaseAdmin");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-
 exports.logIn = async (req, res) => {
   try {
     const { email, password } = req.body;
+    let user;
 
-    // Buscar el usuario por correo electrónico
-    const user = await User.findOne({ email });
-    if (!user)
+    // Buscar usuario en tu base de datos
+    user = await User.findOne({ email });
+    if (!user) {
       return res.status(400).json({ error: "E-mail o contraseña inválidos" });
+    }
 
-    // Comparar la contraseña ingresada con la contraseña almacenada
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(400).json({ error: "E-mail o contraseña inválidos" });
+    let isSocialLogin = false;
 
-    // Generar el token JWT
+    // Intenta verificar si el "password" es un token de Firebase
+    try {
+      const decodedFirebase = await admin.auth().verifyIdToken(password); // token Firebase como password
+      if (decodedFirebase.email === email) {
+        isSocialLogin = true;
+      }
+    } catch (err) {
+      isSocialLogin = false;
+    }
+
+    if (!isSocialLogin) {
+      // Login tradicional
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(400).json({ error: "E-mail o contraseña inválidos" });
+      }
+    }
+
+    // Generar token JWT propio
     const token = jwt.sign(
       { id: user._id, rol: user.rol },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
 
-    // Responder con el mensaje, el token y la información del usuario
     res.status(200).json({
       message: "Inicio de sesión exitoso.",
       token,
@@ -37,6 +52,7 @@ exports.logIn = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
@@ -62,8 +78,15 @@ exports.registrarUsuario = async (req, res) => {
 
     await nuevoUsuario.save();
 
+    const token = jwt.sign(
+      { id: nuevoUsuario._id, rol: nuevoUsuario.rol },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
     res.status(200).json({
       message: "Usuario registrado correctamente",
+      token,
       user: {
         _id: nuevoUsuario._id,
         nombre: nuevoUsuario.nombre,
@@ -78,15 +101,16 @@ exports.registrarUsuario = async (req, res) => {
   }
 };
 
+
 exports.obtenerUsuario = async (req, res) => {
   try {
     const { id } = req.params;
     const usuario = await User.findById(id).select("-password");
-    
+
     if (!usuario) {
       return res.status(404).json({ error: "Usuario no encontrado." });
     }
-    
+
     res.status(200).json(usuario);
   } catch (error) {
     res.status(500).json({ error: "Error interno del servidor." });
