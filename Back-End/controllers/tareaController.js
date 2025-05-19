@@ -18,36 +18,44 @@ exports.crearTarea = async (req, res) => {
       estatus,
     } = req.body;
 
+    if (!titulo || !descripcion || !fecha_vencimiento || puntos_totales == null) {
+      return res.status(400).json({
+        error: "Los campos titulo, descripcion, fecha_vencimiento y puntos_totales son obligatorios y no pueden ser nulos o vacíos.",
+      });
+    }
+
+    if (archivo && (!tipo_archivo || tipo_archivo.trim() === "")) {
+      return res.status(400).json({
+        error: "Si se proporciona un archivo, también se debe especificar el tipo de archivo.",
+      });
+    }
+
     if (!mongoose.Types.ObjectId.isValid(grupo_id)) {
       return res.status(400).json({ error: "ID de grupo no válido" });
     }
 
-    // Verificar si el grupo existe
     const grupo = await Grupo.findById(grupo_id);
     if (!grupo) {
       return res.status(404).json({ error: "Grupo no encontrado" });
     }
 
-    // Validar que los campos requeridos están presentes
-    if (!titulo || !descripcion || !fecha_vencimiento || !puntos_totales) {
-      return res
-        .status(400)
-        .json({ error: "Todos los campos son obligatorios" });
-    }
-
-    // Validar que el estatus sea uno de los valores permitidos
     const estatusValido = ["Abierta", "Cerrada"];
     if (estatus && !estatusValido.includes(estatus)) {
       return res.status(400).json({ error: "Estatus no válido" });
     }
 
-    // Convertir fecha_vencimiento a Date si es necesario
     const fechaVencimiento = new Date(fecha_vencimiento);
     if (isNaN(fechaVencimiento.getTime())) {
       return res.status(400).json({ error: "Fecha de vencimiento no válida" });
     }
 
-    // Crear la tarea
+    // Validar que la fecha de vencimiento sea al menos 1 hora después de la fecha actual
+    const ahora = new Date();
+    const minimoPermitido = new Date(ahora.getTime() + 60 * 60 * 1000); // +1 hora
+    if (fechaVencimiento < minimoPermitido) {
+      return res.status(400).json({ error: "La fecha de vencimiento debe ser al menos una hora después de la hora actual." });
+    }
+
     const nuevaTarea = new Tarea({
       titulo,
       descripcion,
@@ -59,23 +67,11 @@ exports.crearTarea = async (req, res) => {
       estatus: estatus || "Abierta",
     });
 
-    // Guardar la tarea en la base de datos
     await nuevaTarea.save();
 
-    // Responder con la tarea creada
     res.status(201).json({
       message: "Tarea creada exitosamente",
-      task: {
-        _id: nuevaTarea._id,
-        titulo: nuevaTarea.titulo,
-        descripcion: nuevaTarea.descripcion,
-        fecha_vencimiento: nuevaTarea.fecha_vencimiento,
-        archivo: nuevaTarea.archivo,
-        tipo_archivo: nuevaTarea.tipo_archivo,
-        grupo_id: nuevaTarea.grupo_id,
-        puntos_totales: nuevaTarea.puntos_totales,
-        estatus: nuevaTarea.estatus,
-      },
+      task: nuevaTarea,
     });
   } catch (error) {
     console.error("Error al crear tarea:", error);
@@ -85,7 +81,7 @@ exports.crearTarea = async (req, res) => {
 
 exports.actualizarTarea = async (req, res) => {
   try {
-    const { id } = req.params; // Obtener el id de la tarea desde los parámetros de la URL
+    const { id } = req.params;
     const {
       titulo,
       descripcion,
@@ -96,50 +92,69 @@ exports.actualizarTarea = async (req, res) => {
       estatus,
     } = req.body;
 
-    // Buscar la tarea en la base de datos por su ID
     const tarea = await Tarea.findById(id);
     if (!tarea) {
       return res.status(404).json({ error: "Tarea no encontrada" });
     }
 
-    // Validar que el estatus sea uno de los valores permitidos
     const estatusValido = ["Abierta", "Cerrada"];
     if (estatus && !estatusValido.includes(estatus)) {
       return res.status(400).json({ error: "Estatus no válido" });
     }
 
-    // Actualizar los campos de la tarea (solo los proporcionados en el cuerpo de la solicitud)
-    tarea.titulo = titulo || tarea.titulo;
-    tarea.descripcion = descripcion || tarea.descripcion;
-    tarea.fecha_vencimiento = fecha_vencimiento || tarea.fecha_vencimiento;
-    tarea.puntos_totales = puntos_totales || tarea.puntos_totales;
-    tarea.estatus = estatus || tarea.estatus;
-    tarea.archivo = archivo || tarea.archivo;
-    tarea.tipo_archivo = tipo_archivo || tarea.tipo_archivo;
+    if (archivo && (!tipo_archivo || tipo_archivo.trim() === "")) {
+      return res.status(400).json({
+        error: "Si se proporciona un nuevo archivo, también se debe especificar el tipo de archivo.",
+      });
+    }
 
-    // Guardar los cambios en la base de datos
+    if (titulo !== undefined && titulo.trim() === "") {
+      return res.status(400).json({ error: "El título no puede estar vacío." });
+    }
+
+    if (descripcion !== undefined && descripcion.trim() === "") {
+      return res.status(400).json({ error: "La descripción no puede estar vacía." });
+    }
+
+    if (puntos_totales !== undefined && puntos_totales === null) {
+      return res.status(400).json({ error: "Los puntos totales no pueden ser nulos." });
+    }
+
+    tarea.titulo = titulo !== undefined ? titulo : tarea.titulo;
+    tarea.descripcion = descripcion !== undefined ? descripcion : tarea.descripcion;
+    tarea.puntos_totales = puntos_totales !== undefined ? puntos_totales : tarea.puntos_totales;
+    tarea.estatus = estatus !== undefined ? estatus : tarea.estatus;
+    tarea.archivo = archivo !== undefined ? archivo : tarea.archivo;
+    tarea.tipo_archivo = tipo_archivo !== undefined ? tipo_archivo : tarea.tipo_archivo;
+
+    if (fecha_vencimiento) {
+      const nuevaFecha = new Date(fecha_vencimiento);
+      if (isNaN(nuevaFecha.getTime())) {
+        return res.status(400).json({ error: "Fecha de vencimiento no válida" });
+      }
+
+      // Validar que la nueva fecha sea al menos una hora en el futuro
+      const ahora = new Date();
+      const minimoPermitido = new Date(ahora.getTime() + 60 * 60 * 1000);
+      if (nuevaFecha < minimoPermitido) {
+        return res.status(400).json({ error: "La nueva fecha de vencimiento debe ser al menos una hora después de la hora actual." });
+      }
+
+      tarea.fecha_vencimiento = nuevaFecha;
+    }
+
     await tarea.save();
 
-    // Responder con el mensaje de éxito y la tarea actualizada
     res.status(200).json({
       message: "Tarea actualizada exitosamente",
-      task: {
-        _id: tarea._id,
-        titulo: tarea.titulo,
-        descripcion: tarea.descripcion,
-        fecha_vencimiento: tarea.fecha_vencimiento,
-        archivo: tarea.archivo,
-        tipo_archivo: tarea.tipo_archivo,
-        grupo_id: tarea.grupo_id,
-        puntos_totales: tarea.puntos_totales,
-        estatus: tarea.estatus,
-      },
+      task: tarea,
     });
   } catch (error) {
     console.error("Error:", error);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
+
 
 exports.eliminarTarea = async (req, res) => {
   try {
