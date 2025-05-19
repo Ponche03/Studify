@@ -1,8 +1,8 @@
 const cron = require('node-cron');
 const Tarea = require('../models/tareaModel'); 
 
-// Ejecuta cada minuto
-cron.schedule('* * * * *', async () => {
+// Ejecuta todos los días a las 00:00
+cron.schedule('0 0 * * *', async () => {
   try {
     const ahora = new Date();
 
@@ -11,7 +11,7 @@ cron.schedule('* * * * *', async () => {
         estatus: 'Abierta',
         fecha_vencimiento: { $lt: ahora }
       },
-      { $set: { estatus: 'Cerrada' } }
+      { $set: { estatus: 'Cerrada' } } 
     );
 
     console.log(`${resultado.modifiedCount} tareas expiradas modificadas automáticamente.`);
@@ -19,4 +19,3 @@ cron.schedule('* * * * *', async () => {
     console.error('Error al actualizar tareas vencidas:', error);
   }
 });
-

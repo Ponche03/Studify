@@ -18,52 +18,36 @@ exports.crearTarea = async (req, res) => {
       estatus,
     } = req.body;
 
-    // Validar campos obligatorios
-    if (!titulo || !descripcion || !fecha_vencimiento || puntos_totales == null) {
-      return res.status(400).json({
-        error: "Los campos titulo, descripcion, fecha_vencimiento y puntos_totales son obligatorios y no pueden ser nulos o vacíos.",
-      });
-    }
-
-    // Validar tipo_archivo si archivo fue enviado
-    if (archivo && (!tipo_archivo || tipo_archivo.trim() === "")) {
-      return res.status(400).json({
-        error: "Si se proporciona un archivo, también se debe especificar el tipo de archivo.",
-      });
-    }
-
-    // Validar ID de grupo
     if (!mongoose.Types.ObjectId.isValid(grupo_id)) {
       return res.status(400).json({ error: "ID de grupo no válido" });
     }
 
+    // Verificar si el grupo existe
     const grupo = await Grupo.findById(grupo_id);
     if (!grupo) {
       return res.status(404).json({ error: "Grupo no encontrado" });
     }
 
-    // Validar estatus si se proporciona
+    // Validar que los campos requeridos están presentes
+    if (!titulo || !descripcion || !fecha_vencimiento || !puntos_totales) {
+      return res
+        .status(400)
+        .json({ error: "Todos los campos son obligatorios" });
+    }
+
+    // Validar que el estatus sea uno de los valores permitidos
     const estatusValido = ["Abierta", "Cerrada"];
     if (estatus && !estatusValido.includes(estatus)) {
       return res.status(400).json({ error: "Estatus no válido" });
     }
 
-    // Validar fecha de vencimiento
+    // Convertir fecha_vencimiento a Date si es necesario
     const fechaVencimiento = new Date(fecha_vencimiento);
     if (isNaN(fechaVencimiento.getTime())) {
       return res.status(400).json({ error: "Fecha de vencimiento no válida" });
     }
 
-    // Validar que la fecha de vencimiento sea al menos 1 hora después
-    const ahora = new Date();
-    const unaHoraDespues = new Date(ahora.getTime() + 60 * 60 * 1000);
-    if (fechaVencimiento < unaHoraDespues) {
-      return res.status(400).json({
-        error: "La fecha de vencimiento debe ser al menos 1 hora después de la hora actual",
-      });
-    }
-
-    // Crear y guardar la tarea
+    // Crear la tarea
     const nuevaTarea = new Tarea({
       titulo,
       descripcion,
@@ -75,8 +59,10 @@ exports.crearTarea = async (req, res) => {
       estatus: estatus || "Abierta",
     });
 
+    // Guardar la tarea en la base de datos
     await nuevaTarea.save();
 
+    // Responder con la tarea creada
     res.status(201).json({
       message: "Tarea creada exitosamente",
       task: {
@@ -99,7 +85,7 @@ exports.crearTarea = async (req, res) => {
 
 exports.actualizarTarea = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params; // Obtener el id de la tarea desde los parámetros de la URL
     const {
       titulo,
       descripcion,
@@ -110,64 +96,31 @@ exports.actualizarTarea = async (req, res) => {
       estatus,
     } = req.body;
 
+    // Buscar la tarea en la base de datos por su ID
     const tarea = await Tarea.findById(id);
     if (!tarea) {
       return res.status(404).json({ error: "Tarea no encontrada" });
     }
 
+    // Validar que el estatus sea uno de los valores permitidos
     const estatusValido = ["Abierta", "Cerrada"];
     if (estatus && !estatusValido.includes(estatus)) {
       return res.status(400).json({ error: "Estatus no válido" });
     }
 
-    // Validar archivo y tipo_archivo
-    if (archivo && (!tipo_archivo || tipo_archivo.trim() === "")) {
-      return res.status(400).json({
-        error: "Si se proporciona un nuevo archivo, también se debe especificar el tipo de archivo.",
-      });
-    }
+    // Actualizar los campos de la tarea (solo los proporcionados en el cuerpo de la solicitud)
+    tarea.titulo = titulo || tarea.titulo;
+    tarea.descripcion = descripcion || tarea.descripcion;
+    tarea.fecha_vencimiento = fecha_vencimiento || tarea.fecha_vencimiento;
+    tarea.puntos_totales = puntos_totales || tarea.puntos_totales;
+    tarea.estatus = estatus || tarea.estatus;
+    tarea.archivo = archivo || tarea.archivo;
+    tarea.tipo_archivo = tipo_archivo || tarea.tipo_archivo;
 
-    // Validar campos no nulos si se intentan actualizar
-    if (titulo !== undefined && titulo.trim() === "") {
-      return res.status(400).json({ error: "El título no puede estar vacío." });
-    }
-
-    if (descripcion !== undefined && descripcion.trim() === "") {
-      return res.status(400).json({ error: "La descripción no puede estar vacía." });
-    }
-
-    if (puntos_totales !== undefined && puntos_totales === null) {
-      return res.status(400).json({ error: "Los puntos totales no pueden ser nulos." });
-    }
-
-    // Asignaciones condicionales
-    tarea.titulo = titulo !== undefined ? titulo : tarea.titulo;
-    tarea.descripcion = descripcion !== undefined ? descripcion : tarea.descripcion;
-    tarea.puntos_totales = puntos_totales !== undefined ? puntos_totales : tarea.puntos_totales;
-    tarea.estatus = estatus !== undefined ? estatus : tarea.estatus;
-    tarea.archivo = archivo !== undefined ? archivo : tarea.archivo;
-    tarea.tipo_archivo = tipo_archivo !== undefined ? tipo_archivo : tarea.tipo_archivo;
-
-    // Validar y actualizar fecha de vencimiento
-    if (fecha_vencimiento) {
-      const nuevaFecha = new Date(fecha_vencimiento);
-      if (isNaN(nuevaFecha.getTime())) {
-        return res.status(400).json({ error: "Fecha de vencimiento no válida" });
-      }
-
-      const ahora = new Date();
-      const unaHoraDespues = new Date(ahora.getTime() + 60 * 60 * 1000);
-      if (nuevaFecha < unaHoraDespues) {
-        return res.status(400).json({
-          error: "La nueva fecha de vencimiento debe ser al menos 1 hora después de la hora actual",
-        });
-      }
-
-      tarea.fecha_vencimiento = nuevaFecha;
-    }
-
+    // Guardar los cambios en la base de datos
     await tarea.save();
 
+    // Responder con el mensaje de éxito y la tarea actualizada
     res.status(200).json({
       message: "Tarea actualizada exitosamente",
       task: {
@@ -246,18 +199,9 @@ exports.obtenerTareas = async (req, res) => {
     }
 
     if (fecha_inicio && fecha_fin) {
-      const inicio = new Date(fecha_inicio);
-      const fin = new Date(fecha_fin);
-
-      if (inicio > fin) {
-        return res.status(400).json({
-          error: "La fecha de inicio no puede ser mayor que la fecha de fin.",
-        });
-      }
-
       filters.fecha_vencimiento = {
-        $gte: inicio,
-        $lte: fin,
+        $gte: new Date(fecha_inicio),
+        $lte: new Date(fecha_fin),
       };
     }
 
@@ -470,33 +414,27 @@ exports.calificarEntrega = async (req, res) => {
     const { id } = req.params;
     const { alumno_id, calificacion } = req.body;
 
-    const usuarioRol = req.user.rol;
-
-    // Verificar que el usuario tiene rol "maestro"
-    if (usuarioRol !== "maestro") {
-      return res.status(403).json({
-        message: "Solo los usuarios con rol 'maestro' pueden calificar entregas.",
-      });
-    }
-
     if (!alumno_id || calificacion === undefined) {
       return res
         .status(400)
         .json({ message: "Alumno ID y calificación son requeridos." });
     }
 
+    // Validar que la calificación esté en el rango permitido
     if (calificacion < 0 || calificacion > 100) {
       return res
         .status(400)
         .json({ message: "La calificación debe estar entre 0 y 100." });
     }
 
+    // Buscar la tarea por su ID
     const tarea = await Tarea.findById(id);
 
     if (!tarea) {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
+    // Buscar la entrega del alumno
     const entrega = tarea.entregas.find(
       (ent) => ent.alumno_id.toString() === alumno_id
     );
@@ -511,6 +449,7 @@ exports.calificarEntrega = async (req, res) => {
     entrega.estatus = "Revisado";
     entrega.fecha_revision = new Date();
 
+    // Guardar cambios
     await tarea.save();
 
     res.status(200).json({
@@ -525,6 +464,36 @@ exports.calificarEntrega = async (req, res) => {
   } catch (error) {
     console.error("Error al calificar entrega:", error);
     res.status(500).json({ message: "Error interno del servidor" });
+  }
+};
+
+exports.obtenerEntregasPorTarea = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { grupo_id } = req.query;
+
+    if (!grupo_id) {
+      return res.status(400).json({ message: "El ID del grupo es requerido." });
+    }
+
+    const tarea = await Tarea.findOne({ _id: id, grupo_id }).populate(
+      "entregas.alumno_id",
+      "nombre correo"
+    );
+
+    if (!tarea) {
+      return res.status(404).json({
+        message: "Tarea no encontrada o no pertenece al grupo especificado.",
+      });
+    }
+
+    res.status(200).json({
+      message: "Entregas obtenidas exitosamente.",
+      entregas: tarea.entregas,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: "Error interno del servidor." });
   }
 };
 
@@ -574,6 +543,7 @@ exports.subirEntrega = async (req, res) => {
   }
 };
 
+
 exports.eliminarEntrega = async (req, res) => {
   try {
     const { tareaId } = req.params;
@@ -583,11 +553,13 @@ exports.eliminarEntrega = async (req, res) => {
       return res.status(403).json({ message: "Acceso denegado." });
     }
 
+    // Buscar la tarea
     const tarea = await Tarea.findById(tareaId);
     if (!tarea) {
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
+    // Buscar la entrega del alumno en la lista de entregas
     const entregaIndex = tarea.entregas.findIndex(
       (entrega) =>
         entrega.alumno_id && entrega.alumno_id.toString() === usuarioId
@@ -597,12 +569,7 @@ exports.eliminarEntrega = async (req, res) => {
       return res.status(400).json({ message: "No se encontró una entrega del alumno para esta tarea." });
     }
 
-    const entrega = tarea.entregas[entregaIndex];
-
-    if (entrega.estatus === "Revisado") {
-      return res.status(400).json({ message: "No se puede eliminar una entrega ya revisada." });
-    }
-
+    // Eliminar la entrega
     tarea.entregas.splice(entregaIndex, 1);
     await tarea.save();
 
@@ -612,6 +579,7 @@ exports.eliminarEntrega = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor." });
   }
 };
+
 
 exports.actualizarEntrega = async (req, res) => {
   try {
@@ -628,10 +596,6 @@ exports.actualizarEntrega = async (req, res) => {
       return res.status(404).json({ message: "Entrega no encontrada." });
     }
 
-    if (entrega.estatus === "Revisado") {
-      return res.status(400).json({ message: "No se puede actualizar una entrega ya revisada." });
-    }
-
     if (archivo_entregado) entrega.archivo_entregado = archivo_entregado;
     if (tipo_archivo) entrega.tipo_archivo = tipo_archivo;
     if (estatus) entrega.estatus = estatus;
@@ -646,37 +610,6 @@ exports.actualizarEntrega = async (req, res) => {
     res.status(500).json({ message: "Error interno del servidor." });
   }
 };
-
-exports.obtenerEntregasPorTarea = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { grupo_id } = req.query;
-
-    if (!grupo_id) {
-      return res.status(400).json({ message: "El ID del grupo es requerido." });
-    }
-
-    const tarea = await Tarea.findOne({ _id: id, grupo_id }).populate(
-      "entregas.alumno_id",
-      "nombre correo"
-    );
-
-    if (!tarea) {
-      return res.status(404).json({
-        message: "Tarea no encontrada o no pertenece al grupo especificado.",
-      });
-    }
-
-    res.status(200).json({
-      message: "Entregas obtenidas exitosamente.",
-      entregas: tarea.entregas,
-    });
-  } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ message: "Error interno del servidor." });
-  }
-};
-
 exports.obtenerTareasCalendario = async (req, res) => {
   try {
     const { mes, year, timezone = "UTC" } = req.query;

@@ -14,16 +14,6 @@ const obtenerReporteDesempeno = async (req, res) => {
       return res.status(400).json({ message: "fecha_inicio y fecha_fin son obligatorios" });
     }
 
-     const usuarioRol = req.user.rol;
-
-    // Verificar que el usuario tiene rol "maestro"
-    if (usuarioRol !== "maestro") {
-      return res.status(403).json({
-        message: "Solo los usuarios con rol 'maestro' pueden calificar entregas.",
-      });
-    }
-
-
     const fechaInicio = new Date(fecha_inicio);
     const fechaFin = new Date(fecha_fin);
 
@@ -161,6 +151,8 @@ const obtenerReporteDesempeno = async (req, res) => {
 };
 
 
+
+// Terminado
 const obtenerReporteTareas = async (req, res) => {
   try {
     const { grupo_id, tarea_id, alumno_id, fecha_inicio, fecha_fin } = req.query;
@@ -169,36 +161,16 @@ const obtenerReporteTareas = async (req, res) => {
       return res.status(400).json({ message: "grupo_id es obligatorio" });
     }
 
-    const usuarioRol = req.user.rol;
-
-    // Verificar que el usuario tiene rol "maestro"
-    if (usuarioRol !== "maestro") {
-      return res.status(403).json({
-        message: "Solo los usuarios con rol 'maestro' pueden calificar entregas.",
-      });
-    }
-
-    // Validar rango de fechas
-    let fechaInicio = null;
-    let fechaFin = null;
-    if (fecha_inicio && fecha_fin) {
-      fechaInicio = new Date(fecha_inicio);
-      fechaFin = new Date(fecha_fin);
-      if (fechaInicio > fechaFin) {
-        return res.status(400).json({ message: "La fecha de inicio no puede ser mayor a la fecha de fin." });
-      }
-    }
-
     const filtro = { grupo_id };
 
     // Filtro por tarea específica si se proporciona
     if (tarea_id) filtro._id = tarea_id;
 
     // Filtro por rango de fechas
-    if (fechaInicio && fechaFin) {
+    if (fecha_inicio && fecha_fin) {
       filtro.fecha_vencimiento = {
-        $gte: fechaInicio,
-        $lte: fechaFin
+        $gte: new Date(fecha_inicio),
+        $lte: new Date(fecha_fin)
       };
     }
 
@@ -293,19 +265,11 @@ const obtenerReporteTareas = async (req, res) => {
 };
 
 
+
+// Terminado
 const obtenerReporteAsistencia = async (req, res) => {
   try {
     const { grupo_id, alumno_id, fecha_inicio, fecha_fin } = req.query;
-
-     const usuarioRol = req.user.rol;
-
-    // Verificar que el usuario tiene rol "maestro"
-    if (usuarioRol !== "maestro") {
-      return res.status(403).json({
-        message: "Solo los usuarios con rol 'maestro' pueden calificar entregas.",
-      });
-    }
-
 
     if (!grupo_id) {
       return res.status(400).json({ message: "grupo_id es obligatorio" });
@@ -319,11 +283,6 @@ const obtenerReporteAsistencia = async (req, res) => {
     // Convertimos fechas si están presentes
     const fechaInicio = fecha_inicio ? new Date(fecha_inicio) : null;
     const fechaFin = fecha_fin ? new Date(fecha_fin) : null;
-
-    // Validar que fechaInicio no sea mayor a fechaFin
-    if (fechaInicio && fechaFin && fechaInicio > fechaFin) {
-      return res.status(400).json({ message: "La fecha de inicio no puede ser mayor a la fecha de fin." });
-    }
 
     // Filtramos asistencias por grupo (y por fecha si aplica)
     const filtroAsistencias = { grupo_id };
