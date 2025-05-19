@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const Grupo = require("../models/grupoModel");
 const User = require("../models/usuarioModel");
 const Post = require("../models/postModel");
-
+const logger = require('../utils/logger');
 exports.crearGrupo = async (req, res) => {
  
     const { nombre, descripcion, maestro_id, foto } = req.body;
@@ -58,11 +58,13 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
 
 
     if (!alumno_id || !mongoose.Types.ObjectId.isValid(alumno_id)) {
+      logger.warn('Parámetros inválidos', { alumno_id });
       return res.status(400).json({ message: "El alumno_id es obligatorio y debe ser un ID válido." });
     }
     // Verificar si el grupo existe
     const group = await Grupo.findById(group_id);
     if (!group) {
+      logger.warn('Grupo no encontrado', { group_id });
       return res.status(404).json({ error: "El grupo no existe." });
     }
 
@@ -70,6 +72,7 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
     // Verificar si el alumno existe
     const student = await User.findById(alumno_id);
     if (!student || student.rol !== "alumno") {
+      logger.warn('Alumno no encontrado o rol inválido', { alumno_id });
       return res
         .status(400)
         .json({ error: "El alumno no existe o no tiene el rol adecuado." });
@@ -80,6 +83,7 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
       (alumno) => alumno.alumno_id.toString() === alumno_id
     );
     if (alumnoExistente) {
+      logger.warn('Alumno ya en el grupo', { alumno_id, group_id });
       return res
         .status(400)
         .json({ error: "El alumno ya está en este grupo." });
@@ -91,13 +95,15 @@ exports.añadirAlumnoAGrupo = async (req, res) => {
     // Agregar el alumno al grupo con el número de lista calculado
     group.alumnos.push({ alumno_id, numero_lista: numeroLista });
     await group.save();
-
+    
+    logger.info('Alumno agregado al grupo', { alumno_id, group_id });
     res.status(200).json({
       message: "Alumno agregado exitosamente",
       grupo_id: group._id,
       alumnos: group.alumnos,
     });
   } catch (error) {
+    logger.error('Error al agregar alumno al grupo', { error: error.message });
     console.error(error); // Esto te mostrará el error completo en la consola
     res
       .status(500)
@@ -117,9 +123,10 @@ exports.archivarGrupo = async (req, res) => {
     );
 
     if (!grupo) {
+      logger.warn('Grupo no encontrado', { group_id });
       return res.status(404).json({ error: "Grupo no encontrado" });
     }
-
+    logger.info('Grupo archivado', { group_id });
     res.status(200).json({
       message: "Grupo archivado",
       group: {
@@ -128,6 +135,7 @@ exports.archivarGrupo = async (req, res) => {
       },
     });
   } catch (error) {
+    logger.error('Error al archivar grupo', { error: error.message });
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
@@ -140,6 +148,7 @@ exports.desarchivarGrupo = async (req, res) => {
     const grupo = await Grupo.findById(group_id);
 
     if (!grupo) {
+      logger.warn('Grupo no encontrado', { group_id });
       return res.status(404).json({ error: "Grupo no encontrado" });
     }
 
@@ -149,6 +158,7 @@ exports.desarchivarGrupo = async (req, res) => {
     // Guardar los cambios en la base de datos
     await grupo.save();
 
+    logger.info('Grupo desarchivado', { group_id });
     // Responder con el mensaje y el grupo desarchivado
     res.status(200).json({
       message: "Grupo desarchivado",
@@ -158,6 +168,7 @@ exports.desarchivarGrupo = async (req, res) => {
       },
     });
   } catch (error) {
+    logger.error('Error al desarchivar grupo', { error: error.message });
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
@@ -198,6 +209,7 @@ exports.obtenerGrupos = async (req, res) => {
       maestro_id: grupo.maestro_id._id,
     }));
 
+    logger.info('Grupos obtenidos', { page, limit, estado });
     res.status(200).json({
       total,
       page: Number(page),
@@ -205,6 +217,7 @@ exports.obtenerGrupos = async (req, res) => {
       groups: formattedGroups,
     });
   } catch (error) {
+    logger.error('Error al obtener los grupos', { error: error.message });
     res.status(500).json({ error: "Error al obtener los grupos" });
   }
 };
@@ -218,6 +231,8 @@ exports.editarGrupo = async (req, res) => {
     const grupo = await Grupo.findById(group_id);
 
     if (!grupo) {
+
+      logger.warn('Grupo no encontrado', { group_id });
       return res.status(404).json({ error: "Grupo no encontrado" });
     }
 
@@ -229,6 +244,7 @@ exports.editarGrupo = async (req, res) => {
     // Guardar los cambios en la base de datos
     await grupo.save();
 
+    logger.info('Grupo actualizado', { group_id });
     // Responder con el grupo actualizado
     res.status(200).json({
       message: "Grupo actualizado",
@@ -242,6 +258,7 @@ exports.editarGrupo = async (req, res) => {
       },
     });
   } catch (error) {
+    logger.error('Error al actualizar grupo', { error: error.message });
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
@@ -252,6 +269,7 @@ exports.obtenerGrupoConPosts = async (req, res) => {
     const id = group_id;
     // Validar que el ID sea un ObjectId válido
     if (!mongoose.Types.ObjectId.isValid(id)) {
+      logger.warn('ID de grupo no válido', { group_id });
       return res.status(400).json({ error: "ID de grupo no válido" });
     }
 
@@ -259,12 +277,14 @@ exports.obtenerGrupoConPosts = async (req, res) => {
     const grupo = await Grupo.findById(id).populate("maestro_id", "nombre");
 
     if (!grupo) {
+      logger.warn('Grupo no encontrado', { group_id });
       return res.status(404).json({ error: "Grupo no encontrado" });
     }
 
     // Obtener los posts asociados al grupo, ordenados por fecha descendente
     const posts = await Post.find({ grupo_id: id }).sort({ createdAt: -1 });
 
+    logger.info('Grupo y posts obtenidos', { group_id });
     // Responder con la información del grupo y sus posts
     res.status(200).json({
       group: {
@@ -291,6 +311,7 @@ exports.obtenerAlumnosDeGrupo = async (req, res) => {
     const grupo = await Grupo.findById(id);
 
     if (!grupo) {
+      logger.warn('Grupo no encontrado', { group_id });
       return res.status(404).json({ error: "Grupo no encontrado" });
     }
 
@@ -312,11 +333,13 @@ exports.obtenerAlumnosDeGrupo = async (req, res) => {
       };
     });
 
+    logger.info('Alumnos obtenidos del grupo', { group_id });
     // Responder con la lista de alumnos
     res.status(200).json({
       alumnos: alumnosConNumeroLista,
     });
   } catch (error) {
+    logger.error('Error al obtener alumnos de grupo', { error: error.message });
     console.error("Error en obtenerAlumnosDeGrupo:", error);
     res
       .status(500)
@@ -332,6 +355,7 @@ exports.eliminarAlumnoDeGrupo = async (req, res) => {
     // Verificar si el grupo existe
     const group = await Grupo.findById(group_id);
     if (!group) {
+      logger.warn('Grupo no encontrado', { group_id });
       return res.status(404).json({ error: "El grupo no existe." });
     }
 
@@ -357,6 +381,7 @@ exports.eliminarAlumnoDeGrupo = async (req, res) => {
 
     await group.save();
 
+    logger.info('Alumno eliminado del grupo', { group_id, student_id });
     res.status(200).json({
       message: "Alumno eliminado exitosamente",
       grupo_id: group._id,

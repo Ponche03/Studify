@@ -2,6 +2,8 @@ const User = require("../models/usuarioModel");
 const admin = require("../utils/firebaseAdmin");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+
+const logger = require('../utils/logger');
 exports.logIn = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -10,6 +12,8 @@ exports.logIn = async (req, res) => {
     // Buscar usuario en tu base de datos
     user = await User.findOne({ email });
     if (!user) {
+
+      logger.warn("Intento de inicio de sesión fallido", { email });
       return res.status(400).json({ error: "E-mail o contraseña inválidos" });
     }
 
@@ -29,6 +33,7 @@ exports.logIn = async (req, res) => {
       // Login tradicional
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
+        logger.warn("Intento de inicio de sesión fallido", { email });
         return res.status(400).json({ error: "E-mail o contraseña inválidos" });
       }
     }
@@ -39,7 +44,7 @@ exports.logIn = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
-
+    logger.info("Inicio de sesión exitoso", { email });
     res.status(200).json({
       message: "Inicio de sesión exitoso.",
       token,
@@ -52,7 +57,7 @@ exports.logIn = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error("Error al iniciar sesión", { error: error.message });
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
@@ -63,6 +68,7 @@ exports.registrarUsuario = async (req, res) => {
 
     const usuarioExistente = await User.findOne({ email });
     if (usuarioExistente) {
+      logger.warn("Registro fallido: usuario ya existe", { email });
       return res.status(400).json({ error: "Ya existe el nombre de usuario." });
     }
 
@@ -83,7 +89,7 @@ exports.registrarUsuario = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
-
+    logger.info("Registro exitoso", { email });
     res.status(200).json({
       message: "Usuario registrado correctamente",
       token,
@@ -108,11 +114,13 @@ exports.obtenerUsuario = async (req, res) => {
     const usuario = await User.findById(id).select("-password");
 
     if (!usuario) {
+      logger.warn("Usuario no encontrado", { id });
       return res.status(404).json({ error: "Usuario no encontrado." });
     }
-
+    logger.info("Usuario encontrado", { id });
     res.status(200).json(usuario);
   } catch (error) {
+    logger.error("Error al obtener usuario", { error: error.message });
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
@@ -124,6 +132,7 @@ exports.editarUsuario = async (req, res) => {
 
     const usuario = await User.findById(id);
     if (!usuario) {
+      logger.warn("Usuario no encontrado", { id }); 
       return res.status(404).json({ error: "Usuario no encontrado." });
     }
 
@@ -135,8 +144,10 @@ exports.editarUsuario = async (req, res) => {
     }
 
     await usuario.save();
+    logger.info("Usuario actualizado correctamente", { id });
     res.status(200).json({ message: "Usuario actualizado correctamente.", usuario });
   } catch (error) {
+    logger.error("Error al actualizar usuario", { error: error.message });
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
@@ -147,11 +158,13 @@ exports.borrarUsuario = async (req, res) => {
     const usuario = await User.findByIdAndDelete(id);
 
     if (!usuario) {
+      logger.warn("Usuario no encontrado", { id });
       return res.status(404).json({ error: "Usuario no encontrado." });
     }
-
+    logger.info("Usuario eliminado correctamente", { id });
     res.status(200).json({ message: "Usuario eliminado correctamente." });
   } catch (error) {
+    logger.error("Error al eliminar usuario", { error: error.message });
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
@@ -161,6 +174,7 @@ exports.obtenerUsuariosPorBusqueda = async (req, res) => {
     const { q = "", page = 1, limit = 10 } = req.query;
 
     if (!q) {
+      logger.warn("El parámetro 'q' es requerido", { q });
       return res.status(400).json({ error: "El parámetro 'q' es requerido." });
     }
 
@@ -183,6 +197,7 @@ exports.obtenerUsuariosPorBusqueda = async (req, res) => {
       User.countDocuments(filter),
     ]);
 
+    logger.info("Usuarios encontrados", { q, total });
     res.status(200).json({
       results: usuarios,
       total,
@@ -190,7 +205,7 @@ exports.obtenerUsuariosPorBusqueda = async (req, res) => {
       hasMore: skip + usuarios.length < total,
     });
   } catch (error) {
-    console.error(error);
+    logger.error("Error al obtener usuarios por búsqueda", { error: error.message });
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };

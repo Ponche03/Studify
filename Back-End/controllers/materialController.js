@@ -1,5 +1,5 @@
 const MaterialClase = require("../models/materialModel");
-
+const logger = require('../utils/logger');
 // POST /classmat/ - Agregar material de clase
 const agregarMaterial = async (req, res) => {
   try {
@@ -19,11 +19,13 @@ const agregarMaterial = async (req, res) => {
     // Guardar en la base de datos
     const materialGuardado = await nuevoMaterial.save();
 
+    logger.info('Material agregado exitosamente', { material_id: materialGuardado._id });
     res.status(200).json({
       message: "Material agregado exitosamente",
       material: materialGuardado,
     });
   } catch (error) {
+    logger.error('Error al agregar material', { error: error.message });
     res.status(500).json({
       message: "Error al agregar el material",
       error: error.message,
@@ -41,16 +43,19 @@ const eliminarMaterial = async (req, res) => {
     const materialEliminado = await MaterialClase.findByIdAndDelete(id);
 
     if (!materialEliminado) {
+      logger.warn('Material no encontrado', { material_id: id });
       return res.status(404).json({
         message: "Material no encontrado",
       });
     }
 
+    logger.info('Material eliminado exitosamente', { material_id: id });
     res.status(200).json({
       message: "Material eliminado exitosamente",
       material_id: id,
     });
   } catch (error) {
+    logger.error('Error al eliminar material', { error: error.message });
     res.status(500).json({
       message: "Error al eliminar el material",
       error: error.message,
@@ -80,6 +85,7 @@ const obtenerMateriales = async (req, res) => {
 
     const total = await MaterialClase.countDocuments(query);
 
+    logger.info('Materiales obtenidos exitosamente', { group_id, search, page, limit });
     res.status(200).json({
       message: "Materiales obtenidos exitosamente",
       materiales,
@@ -88,6 +94,7 @@ const obtenerMateriales = async (req, res) => {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
+    logger.error('Error al obtener los materiales', { error: error.message });
     res.status(500).json({
       message: "Error al obtener los materiales",
       error: error.message,

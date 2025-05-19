@@ -4,7 +4,7 @@ const Grupo = require("../models/grupoModel");
 const Usuario = require("../models/usuarioModel");
 const fs = require("fs");
 const path = require("path");
-
+const logger = require('../utils/logger');
 exports.crearTarea = async (req, res) => {
   try {
     const {
@@ -94,6 +94,7 @@ exports.actualizarTarea = async (req, res) => {
 
     const tarea = await Tarea.findById(id);
     if (!tarea) {
+      logger.warn("Tarea no encontrada", { id });
       return res.status(404).json({ error: "Tarea no encontrada" });
     }
 
@@ -114,20 +115,24 @@ if (fecha_vencimiento) {
 
 
     if (archivo && (!tipo_archivo || tipo_archivo.trim() === "")) {
+      logger.warn("Tipo de archivo no proporcionado", { id });
       return res.status(400).json({
         error: "Si se proporciona un nuevo archivo, también se debe especificar el tipo de archivo.",
       });
     }
 
     if (titulo !== undefined && titulo.trim() === "") {
+      logger.warn("Título vacío", { id });
       return res.status(400).json({ error: "El título no puede estar vacío." });
     }
 
     if (descripcion !== undefined && descripcion.trim() === "") {
+      logger.warn("Descripción vacía", { id });
       return res.status(400).json({ error: "La descripción no puede estar vacía." });
     }
 
     if (puntos_totales !== undefined && puntos_totales === null) {
+      logger.warn("Puntos totales nulos", { id });
       return res.status(400).json({ error: "Los puntos totales no pueden ser nulos." });
     }
 
@@ -141,6 +146,7 @@ if (fecha_vencimiento) {
     if (fecha_vencimiento) {
       const nuevaFecha = new Date(fecha_vencimiento);
       if (isNaN(nuevaFecha.getTime())) {
+        logger.warn("Fecha de vencimiento no válida", { id });
         return res.status(400).json({ error: "Fecha de vencimiento no válida" });
       }
 
@@ -148,6 +154,7 @@ if (fecha_vencimiento) {
       const ahora = new Date();
       const minimoPermitido = new Date(ahora.getTime() + 60 * 60 * 1000);
       if (nuevaFecha < minimoPermitido) {
+        logger.warn("La nueva fecha de vencimiento debe ser al menos una hora después de la hora actual", { id });
         return res.status(400).json({ error: "La nueva fecha de vencimiento debe ser al menos una hora después de la hora actual." });
       }
 
@@ -155,13 +162,13 @@ if (fecha_vencimiento) {
     }
 
     await tarea.save();
-
+    logger.info("Tarea actualizada exitosamente", { id });
     res.status(200).json({
       message: "Tarea actualizada exitosamente",
       task: tarea,
     });
   } catch (error) {
-    console.error("Error:", error);
+    logger.error("Error:", { error: error.message });
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
@@ -176,14 +183,17 @@ exports.eliminarTarea = async (req, res) => {
 
     // Verificar si la tarea fue encontrada y eliminada
     if (!tareaEliminada) {
+      logger.warn("Tarea no encontrada", { id });
       return res.status(404).json({ error: "Tarea no encontrada" });
     }
 
+    logger.info("Tarea eliminada exitosamente", { id });
     // Responder con un mensaje de éxito
     res.status(200).json({
       message: "Tarea eliminada exitosamente.",
     });
   } catch (error) {
+    logger.error("Error:", { error: error.message });
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
@@ -269,7 +279,7 @@ exports.obtenerTareas = async (req, res) => {
 
     const totalTasks = await Tarea.countDocuments(filters);
     const totalPages = Math.ceil(totalTasks / pageSize);
-
+    logger.info("Tareas obtenidas exitosamente", { totalTasks, page, totalPages });
     res.status(200).json({
       total: totalTasks,
       page: page,
@@ -277,7 +287,7 @@ exports.obtenerTareas = async (req, res) => {
       tasks: tasks,
     });
   } catch (error) {
-    console.error("Error al obtener tareas:", error);
+    logger.error("Error al obtener tareas:", { error: error.message });
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
@@ -293,6 +303,7 @@ exports.obtenerTarea = async (req, res) => {
       .populate("entregas.alumno_id", "nombre email foto_perfil");
 
     if (!tareaRaw) {
+      logger.warn("Tarea no encontrada", { id });
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
@@ -313,6 +324,7 @@ exports.obtenerTarea = async (req, res) => {
     const grupo = await Grupo.findById(tarea.grupo._id).lean();
 
     if (!grupo) {
+      logger.warn("Grupo no encontrado", { id: tarea.grupo._id });
       return res.status(404).json({ message: "Grupo no encontrado" });
     }
 
@@ -429,10 +441,10 @@ exports.obtenerTarea = async (req, res) => {
       // Eliminar el campo 'entregas' para el rol de alumno
       delete tarea.entregas;
     }
-
+    logger.info("Tarea obtenida exitosamente", { id });
     res.status(200).json(tarea);
   } catch (error) {
-    console.error(error);
+    logger.error("Error al obtener tarea", { error: error.message });
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
@@ -443,6 +455,7 @@ exports.calificarEntrega = async (req, res) => {
     const { alumno_id, calificacion } = req.body;
 
     if (!alumno_id || calificacion === undefined) {
+      logger.warn("Alumno ID y calificación son requeridos", { id });
       return res
         .status(400)
         .json({ message: "Alumno ID y calificación son requeridos." });
@@ -450,6 +463,7 @@ exports.calificarEntrega = async (req, res) => {
 
     // Validar que la calificación esté en el rango permitido
     if (calificacion < 0 || calificacion > 100) {
+      logger.warn("La calificación debe estar entre 0 y 100", { id });
       return res
         .status(400)
         .json({ message: "La calificación debe estar entre 0 y 100." });
@@ -459,6 +473,7 @@ exports.calificarEntrega = async (req, res) => {
     const tarea = await Tarea.findById(id);
 
     if (!tarea) {
+      logger.warn("Tarea no encontrada", { id });
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
@@ -468,6 +483,7 @@ exports.calificarEntrega = async (req, res) => {
     );
 
     if (!entrega) {
+      logger.warn("Entrega no encontrada para el alumno", { alumno_id, tarea_id: id });
       return res
         .status(404)
         .json({ message: "Entrega no encontrada para el alumno." });
@@ -479,7 +495,7 @@ exports.calificarEntrega = async (req, res) => {
 
     // Guardar cambios
     await tarea.save();
-
+    logger.info("Entrega calificada exitosamente", { alumno_id, tarea_id: id });
     res.status(200).json({
       message: "Entrega calificada exitosamente",
       entrega: {
@@ -490,7 +506,7 @@ exports.calificarEntrega = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error al calificar entrega:", error);
+    logger.error("Error al calificar entrega", { error: error.message });
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
@@ -501,6 +517,7 @@ exports.obtenerEntregasPorTarea = async (req, res) => {
     const { grupo_id } = req.query;
 
     if (!grupo_id) {
+      logger.warn("El ID del grupo es requerido", { id });
       return res.status(400).json({ message: "El ID del grupo es requerido." });
     }
 
@@ -510,17 +527,18 @@ exports.obtenerEntregasPorTarea = async (req, res) => {
     );
 
     if (!tarea) {
+      logger.warn("Tarea no encontrada o no pertenece al grupo especificado", { id, grupo_id });
       return res.status(404).json({
         message: "Tarea no encontrada o no pertenece al grupo especificado.",
       });
     }
-
+    logger.info("Entregas obtenidas exitosamente", { id, grupo_id });
     res.status(200).json({
       message: "Entregas obtenidas exitosamente.",
       entregas: tarea.entregas,
     });
   } catch (error) {
-    console.error("Error:", error);
+    logger.error("Error al obtener entregas", { error: error.message });
     res.status(500).json({ message: "Error interno del servidor." });
   }
 };
@@ -531,6 +549,7 @@ exports.subirEntrega = async (req, res) => {
     const { alumno_id, archivo_entregado, tipo_archivo } = req.body;
 
     if (!alumno_id || !archivo_entregado || !tipo_archivo) {
+      logger.warn("Los campos alumno_id, archivo_entregado y tipo_archivo son requeridos", { id });
       return res.status(400).json({
         message:
           "Los campos alumno_id, archivo_entregado y tipo_archivo son requeridos.",
@@ -539,11 +558,13 @@ exports.subirEntrega = async (req, res) => {
 
     const tarea = await Tarea.findById(id);
     if (!tarea) {
+      logger.warn("Tarea no encontrada", { id });
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
     const alumno = await Usuario.findOne({ _id: alumno_id, rol: "alumno" });
     if (!alumno) {
+      logger.warn("Alumno no encontrado o no tiene el rol adecuado", { alumno_id });
       return res
         .status(404)
         .json({ message: "Alumno no encontrado o no tiene el rol adecuado." });
@@ -560,13 +581,13 @@ exports.subirEntrega = async (req, res) => {
 
     tarea.entregas.push(nuevaEntrega);
     await tarea.save();
-
+    logger.info("Entrega subida exitosamente", { id, alumno_id });
     res.status(200).json({
       message: "Entrega subida exitosamente",
       entrega: nuevaEntrega,
     });
   } catch (error) {
-    console.error("Error:", error);
+    logger.error("Error al subir entrega", { error: error.message });
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };
@@ -578,12 +599,14 @@ exports.eliminarEntrega = async (req, res) => {
     const { id: usuarioId, rol } = req.user;
 
     if (rol !== 'alumno') {
+      logger.warn("Acceso denegado", { usuarioId, rol });
       return res.status(403).json({ message: "Acceso denegado." });
     }
 
     // Buscar la tarea
     const tarea = await Tarea.findById(tareaId);
     if (!tarea) {
+      logger.warn("Tarea no encontrada", { tareaId });
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
@@ -594,11 +617,13 @@ exports.eliminarEntrega = async (req, res) => {
     );
 
     if (entregaIndex === -1) {
+      logger.warn("No se encontró una entrega del alumno para esta tarea", { tareaId, usuarioId });
       return res.status(400).json({ message: "No se encontró una entrega del alumno para esta tarea." });
     } else {
       const entrega = tarea.entregas[entregaIndex];
 
       if (entrega.estatus === "Revisado") {
+        logger.warn("No se puede eliminar una entrega revisada", { tareaId, usuarioId });
         return res.status(400).json({
           message: "La entrega ya ha sido revisada y no puede ser modificada.",
         });
@@ -608,10 +633,10 @@ exports.eliminarEntrega = async (req, res) => {
     // Eliminar la entrega
     tarea.entregas.splice(entregaIndex, 1);
     await tarea.save();
-
+    logger.info("Entrega eliminada exitosamente", { tareaId, usuarioId });
     res.status(200).json({ message: "Entrega eliminada exitosamente." });
   } catch (error) {
-    console.error("Error:", error);
+    logger.error("Error al eliminar entrega", { error: error.message });
     res.status(500).json({ message: "Error interno del servidor." });
   }
 };
@@ -624,11 +649,13 @@ exports.actualizarEntrega = async (req, res) => {
 
     const tarea = await Tarea.findById(tareaId);
     if (!tarea) {
+      logger.warn("Tarea no encontrada", { tareaId });
       return res.status(404).json({ message: "Tarea no encontrada." });
     }
 
     const entrega = tarea.entregas.id(entregaId);
     if (!entrega) {
+      logger.warn("Entrega no encontrada", { entregaId });
       return res.status(404).json({ message: "Entrega no encontrada." });
     }
 
@@ -638,11 +665,12 @@ exports.actualizarEntrega = async (req, res) => {
 
     await tarea.save();
 
+    logger.info("Entrega actualizada exitosamente", { tareaId, entregaId });
     res
       .status(200)
       .json({ message: "Entrega actualizada exitosamente.", entrega });
   } catch (error) {
-    console.error("Error:", error);
+    logger.error("Error al actualizar entrega", { error: error.message });
     res.status(500).json({ message: "Error interno del servidor." });
   }
 };
@@ -653,6 +681,7 @@ exports.obtenerTareasCalendario = async (req, res) => {
     const userRole = req.user.rol;
 
     if (!mes || !year) {
+      logger.warn("Parámetros 'mes' y 'year' son obligatorios", { mes, year });
       return res.status(400).json({ error: "Parámetros 'mes' y 'anio' son obligatorios" });
     }
 
@@ -717,10 +746,10 @@ exports.obtenerTareasCalendario = async (req, res) => {
         taskId: tarea._id.toString(),
       };
     });
-
+    logger.info("Tareas del calendario obtenidas exitosamente", { mes, year });
     res.status(200).json(tareasParaCalendario);
   } catch (error) {
-    console.error("Error al obtener tareas del calendario:", error);
+    logger.error("Error al obtener tareas del calendario", { error: error.message });
     res.status(500).json({ error: "Error al obtener las tareas del calendario" });
   }
 };

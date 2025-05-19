@@ -1,6 +1,7 @@
 const Asistencia = require("../models/asistenciaModel");
 const Grupo = require("../models/grupoModel");
 const mongoose = require("mongoose");
+const logger = require('../utils/logger');
 const guardarAsistencia = async (req, res) => {
   try {
     const { grupo_id, fecha, asistencias } = req.body;
@@ -8,6 +9,7 @@ const guardarAsistencia = async (req, res) => {
 
     // Validación de parámetros
     if (!grupo_id || !fecha || !Array.isArray(asistencias)) {
+      logger.warn('Parámetros inválidos', { grupo_id, fecha, asistencias });
       return res.status(400).json({
         message: "Faltan parámetros obligatorios o son inválidos: grupo_id, fecha, asistencias.",
       });
@@ -15,6 +17,7 @@ const guardarAsistencia = async (req, res) => {
 
     const fechaObj = new Date(fecha);
     if (isNaN(fechaObj.getTime())) {
+      logger.warn('Fecha inválida', { fecha });
       return res.status(400).json({
         message: "La fecha proporcionada no es válida.",
       });
@@ -22,6 +25,7 @@ const guardarAsistencia = async (req, res) => {
 
     // Validación de rol
     if (usuarioActivo.rol !== "maestro") {
+      logger.warn('Acceso denegado', { usuario_id: usuarioActivo.id });
       return res.status(403).json({
         message: "Permiso denegado. Solo los maestros pueden registrar asistencia.",
       });
@@ -30,10 +34,12 @@ const guardarAsistencia = async (req, res) => {
     // Validación de pertenencia al grupo
     const grupo = await Grupo.findById(grupo_id);
     if (!grupo) {
+      logger.warn('Grupo no encontrado', { grupo_id });
       return res.status(404).json({ message: "El grupo no existe." });
     }
 
     if (!grupo.maestro_id.equals(usuarioActivo.id)) {
+      logger.warn('Acceso denegado', { usuario_id: usuarioActivo.id, grupo_id });
       return res.status(403).json({
         message: "No tienes permiso para registrar asistencia para este grupo.",
       });
@@ -59,6 +65,7 @@ const guardarAsistencia = async (req, res) => {
     });
 
     if (existente) {
+      logger.warn('Asistencia ya registrada', { grupo_id, fecha });
       return res.status(409).json({
         message: "Ya existe una asistencia registrada para este grupo en esta fecha.",
       });
@@ -73,11 +80,13 @@ const guardarAsistencia = async (req, res) => {
 
     const asistenciaGuardada = await nuevaAsistencia.save();
 
+    logger.info('Proceso completado exitosamente');
     res.status(200).json({
       message: "Asistencia registrada exitosamente",
       attendance: asistenciaGuardada,
     });
   } catch (error) {
+    logger.error('Error al registrar la asistencia', { error });
     res.status(500).json({
       message: "Error al registrar la asistencia",
       error: error.message,
@@ -90,6 +99,7 @@ const obtenerAsistencia = async (req, res) => {
     const { grupo_id, fecha, timezone = "UTC" } = req.query;
     const usuarioActivo = req.user;
     if (!grupo_id || !fecha || !timezone) {
+      logger.warn('Parámetros faltantes', { grupo_id, fecha, timezone });
       return res.status(400).json({ message: "Parámetros 'grupo_id', 'fecha' y 'timezone' son obligatorios" });
     }
 
@@ -100,6 +110,7 @@ const obtenerAsistencia = async (req, res) => {
 
     const esMaestroDelGrupo = grupo.maestro_id.toString() === usuarioActivo.id.toString();
     if (!esMaestroDelGrupo) {
+      logger.warn('Acceso denegado', { usuario_id: usuarioActivo.id, grupo_id });
       return res.status(403).json({
         message: "No tienes permiso para consultar la asistencia de este grupo.",
       });
@@ -125,6 +136,7 @@ const obtenerAsistencia = async (req, res) => {
     }).lean();
 
     if (!asistencia) {
+      logger.warn('Asistencia no encontrada', { grupo_id, fecha });
       return res.status(404).json({
         notFound: true,
         message: "No se encontró asistencia para el grupo y fecha especificados",
@@ -138,14 +150,16 @@ const obtenerAsistencia = async (req, res) => {
 
     asistencia.fecha_local = fechaLocal; // yyyy-mm-dd
 
+    logger.info('Proceso completado exitosamente');
     res.status(200).json({
       message: "Asistencia obtenida exitosamente",
       attendance: asistencia,
     });
-  } catch (error) {
+  } catch (ex) {
+    logger.error('Error al obtener la asistencia', { ex });
     res.status(500).json({
       message: "Error al obtener la asistencia",
-      error: error.message,
+      error: ex.message,
     });
   }
 };

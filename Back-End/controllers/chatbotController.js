@@ -1,6 +1,7 @@
 const OpenAI = require("openai");
 const Conversacion = require("../models/conversacionModel");
 
+const logger = require('../utils/logger');
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
@@ -35,6 +36,7 @@ exports.handleChat = async (req, res) => {
 
   try {
     if (!userId || !message) {
+      logger.warn('Parámetros inválidos', { userId, message });
       return res.status(400).json({ error: "userId y message son requeridos." });
     }
 
@@ -80,9 +82,10 @@ conversacion.lastInteraction = now;
     conversacion.messages.push({ role: "assistant", content: botReply });
     await conversacion.save();
 
+    logger.info('Respuesta enviada', { userId, message: mensajeLimitado, reply: botReply });
     res.json({ reply: botReply });
-
   } catch (error) {
+    logger.error('Error en handleChat', { error: error.message, userId, message });
     console.error("Error en handleChat:", error);
     res.status(500).json({ error: "Error al procesar la conversación." });
   }
@@ -106,11 +109,14 @@ exports.getActiveConversation = async (req, res) => {
     }
 
     if (!conversacion) {
+      logger.warn('No hay conversación activa', { userId });
       return res.status(404).json({ message: "No hay conversación activa" });
     }
 
+    logger.info('Conversación activa obtenida', { userId, conversationId: conversacion._id });
     res.json({ conversacion });
   } catch (error) {
+    logger.error('Error al obtener la conversación', { error: error.message, userId });
     console.error("Error al obtener la conversación:", error);
     res.status(500).json({ error: "Error al buscar la conversación" });
   }
