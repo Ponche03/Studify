@@ -89,7 +89,6 @@ exports.actualizarTarea = async (req, res) => {
       archivo,
       tipo_archivo,
       puntos_totales,
-      estatus,
       group_id
     } = req.body;
 
@@ -98,10 +97,21 @@ exports.actualizarTarea = async (req, res) => {
       return res.status(404).json({ error: "Tarea no encontrada" });
     }
 
-    const estatusValido = ["Abierta", "Cerrada"];
-    if (estatus && !estatusValido.includes(estatus)) {
-      return res.status(400).json({ error: "Estatus no válido" });
+if (fecha_vencimiento) {
+  const fechaAnterior = new Date(tarea.fecha_vencimiento);
+  const fechaNueva = new Date(fecha_vencimiento);
+
+  // Si la nueva fecha es diferente y está en el futuro, reabrir la tarea
+  if (fechaNueva.getTime() !== fechaAnterior.getTime() && fechaNueva > new Date()) {
+    tarea.fecha_vencimiento = fechaNueva;
+
+    if (tarea.estatus === "Cerrada") {
+      tarea.estatus = "Abierta";
     }
+  }
+}
+
+
 
     if (archivo && (!tipo_archivo || tipo_archivo.trim() === "")) {
       return res.status(400).json({
@@ -124,7 +134,7 @@ exports.actualizarTarea = async (req, res) => {
     tarea.titulo = titulo !== undefined ? titulo : tarea.titulo;
     tarea.descripcion = descripcion !== undefined ? descripcion : tarea.descripcion;
     tarea.puntos_totales = puntos_totales !== undefined ? puntos_totales : tarea.puntos_totales;
-    tarea.estatus = estatus !== undefined ? estatus : tarea.estatus;
+    tarea.estatus = tarea.estatus;
     tarea.archivo = archivo !== undefined ? archivo : tarea.archivo;
     tarea.tipo_archivo = tipo_archivo !== undefined ? tipo_archivo : tarea.tipo_archivo;
 
