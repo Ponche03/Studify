@@ -26,7 +26,7 @@ router.get("/groups", grupoController.obtenerGrupos);
 router.patch("/groups/:group_id", teacherGroupCheckMiddleware, grupoController.editarGrupo);
 
 // Ruta para obtener la información de un grupo con sus posts
-router.get("/groups/:group_id", teacherGroupCheckMiddleware, grupoController.obtenerGrupoConPosts);
+router.get("/groups/:group_id",teacherGroupCheckMiddleware, grupoController.obtenerGrupoConPosts);
 
 // Ruta para obtener los alumnos de un grupo específico
 router.get("/groups/:group_id/getStudents", grupoController.obtenerAlumnosDeGrupo);

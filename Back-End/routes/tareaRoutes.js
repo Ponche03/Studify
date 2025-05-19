@@ -22,7 +22,7 @@ router.get("/tasks/calendar", taskController.obtenerTareasCalendario);
 
 
 // Ruta para obtener información detallada de una tarea
-router.get("/tasks/:group_id/show/:id", teacherGroupCheckMiddleware, taskController.obtenerTarea);
+router.get("/tasks/:id", taskController.obtenerTarea);
 
 // Ruta para calificar una tarea
 router.post("/tasks/:id/gradeTask", teacherGroupCheckMiddleware, taskController.calificarEntrega);

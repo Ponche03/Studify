@@ -227,7 +227,7 @@ exports.obtenerTareas = async (req, res) => {
     }
 
     if (titulo) {
-      filters.titulo = { $regex: titulo, $options: "i" }; 
+      filters.titulo = { $regex: titulo, $options: "i" };
     }
 
 
@@ -585,6 +585,14 @@ exports.eliminarEntrega = async (req, res) => {
 
     if (entregaIndex === -1) {
       return res.status(400).json({ message: "No se encontró una entrega del alumno para esta tarea." });
+    } else {
+      const entrega = tarea.entregas[entregaIndex];
+
+      if (entrega.estatus === "Revisado") {
+        return res.status(400).json({
+          message: "La entrega ya ha sido revisada y no puede ser modificada.",
+        });
+      }
     }
 
     // Eliminar la entrega
