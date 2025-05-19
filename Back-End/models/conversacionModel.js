@@ -13,4 +13,4 @@ const conversationSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true }
 });
 
-module.exports = mongoose.model("Conversation", conversationSchema);
+module.exports = mongoose.model("Conversacion", conversationSchema);
