@@ -4,6 +4,7 @@ const Tarea = require("../models/tareaModel");
 const EntregaTarea = require("../models/tareaModel");
 const Asistencia = require("../models/asistenciaModel");
 
+const logger = require('../utils/logger');
 const obtenerReporteDesempeno = async (req, res) => {
   try {
     const { grupo_id, fecha_inicio, fecha_fin } = req.query;
@@ -29,6 +30,7 @@ const obtenerReporteDesempeno = async (req, res) => {
 
     const grupos = await Grupo.find(filtroGrupos).lean();
     if (grupos.length === 0) {
+      logger.warn("No se encontraron grupos para el usuario", { usuario_id: maestro_id });
       return res
         .status(404)
         .json({ message: "No se encontraron grupos para este usuario." });
@@ -145,6 +147,7 @@ const obtenerReporteDesempeno = async (req, res) => {
     if (grupo_id) {
       // Solo devolver el reporte para el grupo filtrado (en array)
       const reporteGrupo = reportes.filter((r) => r.grupo_id === grupo_id);
+      logger.info("Reporte de desempeño para grupo específico", { grupo_id });
       return res.status(200).json(reporteGrupo);
     } else {
       // Devolver el reporte general con desviacion_estandar_promedio y grupos
@@ -153,13 +156,14 @@ const obtenerReporteDesempeno = async (req, res) => {
         grupo: r.grupo,
         desviacion_estandar: r.desviacion_estandar_vs_otros_grupos,
       }));
-
+      logger.info("Reporte de desempeño general", { grupos: reportes });
       return res.status(200).json({
         desviacion_estandar_promedio,
         grupos: reportes,
       });
     }
   } catch (error) {
+    logger.error("Error al obtener el reporte de desempeño", { error });
     console.error("Error en obtenerReporteDesempeno:", error);
     res
       .status(500)
@@ -177,6 +181,7 @@ const obtenerReporteTareas = async (req, res) => {
       req.query;
 
     if (!grupo_id) {
+      logger.warn("grupo_id es obligatorio");
       return res.status(400).json({ message: "grupo_id es obligatorio" });
     }
 
@@ -200,6 +205,7 @@ const obtenerReporteTareas = async (req, res) => {
     const tareas = await Tarea.find(filtro).lean();
 
     if (tareas.length === 0) {
+      logger.warn("No se encontraron tareas con los filtros aplicados", { filtro });
       return res
         .status(404)
         .json({
@@ -245,7 +251,7 @@ const obtenerReporteTareas = async (req, res) => {
           });
         }
       });
-
+      logger.info("Reporte de tareas por alumno", { grupo_id, alumno_id });
       return res.status(200).json(reportePorAlumno);
     }
 
@@ -254,6 +260,7 @@ const obtenerReporteTareas = async (req, res) => {
       .populate("alumnos.alumno_id", "nombre")
       .lean();
     if (!grupo) {
+      logger.warn("Grupo no encontrado", { grupo_id });
       return res.status(404).json({ message: "Grupo no encontrado" });
     }
 
@@ -291,6 +298,7 @@ const obtenerReporteTareas = async (req, res) => {
           ? sumaCalificaciones / totalCalificaciones
           : null;
 
+          logger.info("Resumen de tareas por alumno", { grupo_id, nombre });
       return {
         nombre_alumno: nombre,
         porcentaje_entregadas_a_tiempo: porcentajeEntregadas.toFixed(2) + "%", // porcentaje_de_entregas
@@ -301,8 +309,10 @@ const obtenerReporteTareas = async (req, res) => {
       };
     });
 
+    logger.info("Resumen de tareas por alumno", { grupo_id });
     return res.status(200).json(resumenPorAlumno);
   } catch (error) {
+    logger.error("Error al obtener el reporte", { error: error.message });
     console.error("Error al obtener el reporte:", error);
     return res
       .status(500)
@@ -315,11 +325,13 @@ const obtenerReporteAsistencia = async (req, res) => {
     const { grupo_id, alumno_id, fecha_inicio, fecha_fin } = req.query;
 
     if (!grupo_id) {
+      logger.warn("grupo_id es obligatorio");
       return res.status(400).json({ message: "grupo_id es obligatorio" });
     }
 
     const grupo = await Grupo.findById(grupo_id).lean();
     if (!grupo) {
+      logger.warn("Grupo no encontrado", { grupo_id });
       return res.status(404).json({ message: "Grupo no encontrado" });
     }
 
@@ -339,6 +351,7 @@ const obtenerReporteAsistencia = async (req, res) => {
     if (alumno_id && fechaInicio && fechaFin) {
       const alumnoUsuario = await Usuario.findById(alumno_id).lean();
       if (!alumnoUsuario) {
+        logger.warn("Alumno no encontrado", { alumno_id });
         return res.status(404).json({ message: "Alumno no encontrado" });
       }
 
@@ -358,6 +371,7 @@ const obtenerReporteAsistencia = async (req, res) => {
         };
       });
 
+      logger.info("Reporte de asistencia por alumno", { grupo_id, alumno_id });
       return res.status(200).json({
         nombre_alumno: alumnoUsuario.nombre,
         detalle_asistencia: detallePorDia,
@@ -389,7 +403,6 @@ const obtenerReporteAsistencia = async (req, res) => {
         const porcentajeAsistencia =
           totalSesiones > 0 ? (totalAsistencias / totalSesiones) * 100 : 0;
         const porcentajeFaltas = 100 - porcentajeAsistencia;
-
         return {
           nombre_alumno: alumnoUsuario.nombre,
           porcentaje_asistencia: porcentajeAsistencia.toFixed(2),
@@ -399,10 +412,11 @@ const obtenerReporteAsistencia = async (req, res) => {
         };
       })
     );
-
+    
+    logger.info("Reporte de asistencia por grupo", { grupo_id });
     res.status(200).json(reporte.filter(Boolean));
   } catch (error) {
-    console.error("Error en obtenerReporteAsistencia:", error);
+    logger.error("Error en obtenerReporteAsistencia", { error: error.message });
     res
       .status(500)
       .json({
