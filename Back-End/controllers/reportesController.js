@@ -219,11 +219,7 @@ const obtenerReporteTareas = async (req, res) => {
 
         if (entregaAlumno) {
           // Tarea entregada
-          const estado =
-            entregaAlumno.estatus === "Entregado" ||
-            entregaAlumno.estatus === "Revisado"
-              ? "Entregado"
-              : "Pendiente";
+         const estado = entregaAlumno.estatus || "Pendiente";
           const calificacion =
             typeof entregaAlumno.calificacion === "number"
               ? entregaAlumno.calificacion
